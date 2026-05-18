@@ -25,6 +25,7 @@ rg -n \
   || true
 
 # Options API methods with empty bodies: methods: { foo() {} } or foo: function() {}
+# Note: this pattern is noisy on Vue Options API method objects; manual judgment required at Phase 3.
 rg -n --multiline --multiline-dotall \
   -e '[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)\s*\{\s*\}\s*,' \
   --glob '*.vue' --glob '!**/*.test.*' \
