@@ -18,7 +18,7 @@ npx --yes leasot --reporter json \
 # Explicit unimplemented raises
 rg -n \
   -e 'raise NotImplementedError' \
-  -e 'raise Exception\(["\'](not implemented|todo|stub|placeholder)' \
+  -e 'raise Exception\(["\x27](not implemented|todo|stub|placeholder)' \
   --glob '*.py' --glob '!**/test_*.py' --glob '!**/*_test.py' --glob '!**/tests/**' \
   || true
 
@@ -44,7 +44,7 @@ rg -n \
 
 # Django views with HttpResponse placeholder text
 rg -n \
-  -e 'HttpResponse\(["\'](TODO|todo|placeholder|coming soon|not implemented)' \
+  -e 'HttpResponse\(["\x27](TODO|todo|placeholder|coming soon|not implemented)' \
   --glob '*.py' --glob '!**/test_*.py' --glob '!**/*_test.py' --glob '!**/tests/**' \
   || true
 

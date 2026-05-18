@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Markdownlint
+        run: npx --yes markdownlint-cli2 "**/*.md" "#node_modules" "#.git" || true
+        # Soft-fail on style — surfaces output without blocking the matrix.
+        # Tighten by removing the `|| true` once the corpus stabilizes.
+
+      - name: Validate SKILL frontmatter
+        run: bash tests/lib/validate-frontmatter.sh skills
+
+      - name: Extract bash blocks from SKILL files
+        run: |
+          mkdir -p /tmp/extracted-bash
+          for f in skills/dishonest-code-audit/SKILL.md \
+                   skills/stub-audit/SKILL.md \
+                   skills/stub-audit/profiles/*.md \
+                   skills/stub-audit/profiles/frameworks/*.md; do
+            out="/tmp/extracted-bash/$(echo "$f" | tr '/' '_').sh"
+            {
+              echo '#!/usr/bin/env bash'
+              echo '# Extracted from '"$f"
+              bash tests/lib/extract-bash.sh "$f"
+            } > "$out"
+          done
+          ls -la /tmp/extracted-bash
+
+      - name: Shellcheck extracted bash and tests
+        run: |
+          shellcheck -S warning tests/run-fixtures.sh tests/lib/extract-bash.sh tests/lib/validate-frontmatter.sh
+          for f in /tmp/extracted-bash/*.sh; do
+            shellcheck -S warning -x "$f" || exit 1
+          done
+
+      - name: Fixture mechanical-sweep harness
+        run: bash tests/run-fixtures.sh

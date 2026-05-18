@@ -1,0 +1,9 @@
+[package]
+name = "fixture-rust-axum"
+version = "0.0.0"
+edition = "2021"
+description = "Synthetic fixture for stub-audit harness. Not buildable; not installed."
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["macros"] }

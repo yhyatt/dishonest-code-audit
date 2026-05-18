@@ -1,0 +1,11 @@
+{
+  "fixture": "rust-axum",
+  "stack": ["rust"],
+  "expected_findings": [
+    {
+      "file": "src/main.rs",
+      "pattern": "todo!(",
+      "min_severity": "HIGH"
+    }
+  ]
+}

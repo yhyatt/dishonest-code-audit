@@ -9,10 +9,10 @@ Detected when `package.json` lists `"vue"` as a dependency.
 ```bash
 # Empty @click / @submit / @change / v-on bindings — single-quote and double-quote variants
 rg -n \
-  -e '@click=["\']\(\)\s*=>\s*\{\s*\}["\']' \
-  -e '@submit=["\']\(\)\s*=>\s*\{\s*\}["\']' \
-  -e '@change=["\']\(\)\s*=>\s*\{\s*\}["\']' \
-  -e 'v-on:click=["\']\(\)\s*=>\s*\{\s*\}["\']' \
+  -e '@click=["\x27]\(\)\s*=>\s*\{\s*\}["\x27]' \
+  -e '@submit=["\x27]\(\)\s*=>\s*\{\s*\}["\x27]' \
+  -e '@change=["\x27]\(\)\s*=>\s*\{\s*\}["\x27]' \
+  -e 'v-on:click=["\x27]\(\)\s*=>\s*\{\s*\}["\x27]' \
   --glob '*.vue' --glob '!**/*.test.*' --glob '!**/node_modules/**' \
   || true
 
@@ -38,7 +38,7 @@ rg -n \
 
 # Computed properties returning a hardcoded placeholder
 rg -n \
-  -e 'computed\(\(\)\s*=>\s*["\'](TODO|todo|placeholder|coming soon)' \
+  -e 'computed\(\(\)\s*=>\s*["\x27](TODO|todo|placeholder|coming soon)' \
   --glob '*.vue' --glob '!**/*.test.*' \
   || true
 ```

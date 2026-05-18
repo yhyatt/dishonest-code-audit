@@ -1,0 +1,11 @@
+{
+  "fixture": "ruby-sinatra",
+  "stack": ["ruby"],
+  "expected_findings": [
+    {
+      "file": "app.rb",
+      "pattern": "raise NotImplementedError",
+      "min_severity": "HIGH"
+    }
+  ]
+}

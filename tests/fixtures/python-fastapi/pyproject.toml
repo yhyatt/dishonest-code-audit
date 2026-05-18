@@ -1,0 +1,5 @@
+[project]
+name = "fixture-python-fastapi"
+version = "0.0.0"
+description = "Synthetic fixture for stub-audit harness. Not buildable; not installed."
+dependencies = ["fastapi"]

@@ -13,7 +13,7 @@ bundle exec rubocop --only Lint/UnreachableCode --format json > /tmp/stub-audit-
 # Explicit unimplemented raises
 rg -n \
   -e 'raise NotImplementedError' \
-  -e 'raise.*?["\'](not implemented|todo|stub|placeholder)' \
+  -e 'raise.*?["\x27](not implemented|todo|stub|placeholder)' \
   --glob '*.rb' --glob '!**/spec/**' --glob '!**/test/**' --glob '!**/vendor/**' \
   || true
 
@@ -25,13 +25,13 @@ rg -n --multiline --multiline-dotall \
 
 # Rails controller actions that only call render with placeholder text
 rg -n \
-  -e 'render\s+(plain|text|json|html):\s*["\'](TODO|todo|placeholder|coming soon|not implemented)' \
+  -e 'render\s+(plain|text|json|html):\s*["\x27](TODO|todo|placeholder|coming soon|not implemented)' \
   --glob '*.rb' --glob '!**/spec/**' --glob '!**/test/**' --glob '!**/vendor/**' \
   || true
 
 # Sinatra route handlers returning a placeholder string literal
 rg -n -B1 \
-  -e '^\s*["\'](TODO|todo|placeholder|coming soon|not implemented)["\']\s*$' \
+  -e '^\s*["\x27](TODO|todo|placeholder|coming soon|not implemented)["\x27]\s*$' \
   --glob '*.rb' --glob '!**/spec/**' --glob '!**/test/**' --glob '!**/vendor/**' \
   || true
 

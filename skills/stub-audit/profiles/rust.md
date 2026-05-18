@@ -17,7 +17,7 @@ rg -n \
 
 # panic!("not implemented") — common manual variant
 rg -n \
-  -e 'panic!\s*\(\s*["\'](not implemented|TODO|todo|unimplemented|stub|placeholder)' \
+  -e 'panic!\s*\(\s*["\x27](not implemented|TODO|todo|unimplemented|stub|placeholder)' \
   --glob '*.rs' --glob '!**/target/**' --glob '!**/tests/**' \
   || true
 

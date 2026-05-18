@@ -1,0 +1,21 @@
+{
+  "fixture": "nextjs-react",
+  "stack": ["typescript", "frameworks/react"],
+  "expected_findings": [
+    {
+      "file": "app/page.tsx",
+      "pattern": "onClick={() => {}}",
+      "min_severity": "HIGH"
+    },
+    {
+      "file": "app/api/save/route.ts",
+      "pattern": "mock-data",
+      "min_severity": "HIGH"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "pattern": "toast-in-catch",
+      "min_severity": "HIGH"
+    }
+  ]
+}

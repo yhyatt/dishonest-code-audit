@@ -10,7 +10,7 @@ go vet ./... 2> /tmp/stub-audit-govet.txt || true
 
 # Explicit unimplemented panics in handlers / methods
 rg -n \
-  -e 'panic\(["\'](not implemented|TODO|todo|unimplemented|stub|placeholder)' \
+  -e 'panic\(["\x27](not implemented|TODO|todo|unimplemented|stub|placeholder)' \
   --glob '*.go' --glob '!**/*_test.go' --glob '!**/vendor/**' \
   || true
 
@@ -35,7 +35,7 @@ rg -n -i \
 # HTTP handlers returning hardcoded literal JSON with placeholder content
 rg -n \
   -e 'json\.NewEncoder\([^)]*\)\.Encode\(.*?(mock|fake|sample|placeholder|TODO|todo)' \
-  -e 'fmt\.Fprint(ln|f)?\([^,]+,\s*["\`]\{[^}]*(mock|fake|sample|placeholder|TODO)' \
+  -e 'fmt\.Fprint(ln|f)?\([^,]+,\s*["`]\{[^}]*(mock|fake|sample|placeholder|TODO)' \
   --glob '*.go' --glob '!**/*_test.go' --glob '!**/vendor/**' \
   || true
 

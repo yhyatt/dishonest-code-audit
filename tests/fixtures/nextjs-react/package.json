@@ -1,0 +1,9 @@
+{
+  "name": "fixture-nextjs-react",
+  "private": true,
+  "description": "Synthetic fixture for stub-audit harness. Not buildable; not installed.",
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0"
+  }
+}
