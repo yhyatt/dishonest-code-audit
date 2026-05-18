@@ -109,7 +109,7 @@ When in doubt, downgrade rather than upgrade. A false HIGH erodes the reader's t
 If the caller did not specify a scope, default to:
 
 ```
-{app,src,pages,components,lib,server,hooks,utils,actions,api,routes}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,py,go,rs,rb}
+{app,src,pages,components,lib,server,hooks,utils,actions,api,routes}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,vue,svelte,py,go,rs,rb}
 ```
 
 The glob is conditioned on detected stack profiles; do not include `.py` if no Python profile loaded, etc.

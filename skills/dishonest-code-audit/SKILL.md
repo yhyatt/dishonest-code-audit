@@ -46,7 +46,7 @@ Ask the user OR infer from context. Three common scopes:
 If the user didn't specify, ask once. If they say "just audit it," default to:
 
 ```
-{app,src,pages,components,lib,server,hooks,utils,actions,api,routes}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,py,go,rs,rb}
+{app,src,pages,components,lib,server,hooks,utils,actions,api,routes}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,vue,svelte,py,go,rs,rb}
 ```
 
 Condition the glob on the stack profiles detected by `stub-audit` (see its `Phase 1: Stack detection`). Do not glob `.py` if no Python profile was loaded; the same applies to every other language.
