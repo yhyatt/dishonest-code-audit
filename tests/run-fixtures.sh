@@ -103,7 +103,34 @@ for dirpath, dirnames, filenames in os.walk(root):
 PY
       ;;
 
-    # Go profile — panic("not implemented")
+    # Python / Ruby profile, hardcoded canned data in handler return.
+    # Mirrors the `return\s*\{[^}]*(mock|fake|...|placeholder|TODO|todo)` grep
+    # in python.md and (for plain string-literal returns) ruby.md's Sinatra rule.
+    "placeholder-return")
+      python3 - "$fixture_dir" <<'PY' || true
+import os, re, sys
+root = sys.argv[1]
+# Python: dict-return with placeholder-flavored keys/values.
+py_pat = re.compile(r'return\s*\{[^}]*(mock|fake|sample|placeholder|TODO|todo)', re.DOTALL)
+# Ruby: bare placeholder string literal at start of a line (Sinatra route body).
+rb_pat = re.compile(r'^\s*[\'\"](TODO|todo|placeholder|coming soon|not implemented)[\'\"]\s*$', re.MULTILINE)
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames if d not in {"node_modules", "vendor", "__pycache__", ".venv", "venv"}]
+    for fn in filenames:
+        p = os.path.join(dirpath, fn)
+        try:
+            with open(p) as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        if fn.endswith(".py") and py_pat.search(src):
+            print(p)
+        elif fn.endswith(".rb") and rb_pat.search(src):
+            print(p)
+PY
+      ;;
+
+    # Go profile, panic("not implemented")
     'panic("not implemented")')
       grep -rEln --include='*.go' --exclude-dir=vendor \
         'panic\("[^"]*(not implemented|TODO|todo|unimplemented|stub|placeholder)' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true

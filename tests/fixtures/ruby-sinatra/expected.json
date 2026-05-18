@@ -6,6 +6,11 @@
       "file": "app.rb",
       "pattern": "raise NotImplementedError",
       "min_severity": "HIGH"
+    },
+    {
+      "file": "app.rb",
+      "pattern": "placeholder-return",
+      "min_severity": "HIGH"
     }
   ]
 }

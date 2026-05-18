@@ -8,6 +8,11 @@
       "min_severity": "HIGH"
     },
     {
+      "file": "app/main.py",
+      "pattern": "placeholder-return",
+      "min_severity": "HIGH"
+    },
+    {
       "file": "app/services/billing.py",
       "pattern": "def charge",
       "min_severity": "HIGH"
