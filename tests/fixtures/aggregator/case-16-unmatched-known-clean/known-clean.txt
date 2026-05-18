@@ -1,0 +1,3 @@
+# One entry matches a real finding, one is a typo / outdated path
+src/save.ts — finding present, should be reclassified
+src/does-not-exist.ts — caller typo, should appear in "not observed" section

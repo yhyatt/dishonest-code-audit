@@ -1,0 +1,20 @@
+{
+  "counts": {
+    "safe_high": 1,
+    "mock_high": 1,
+    "safe_medium": 0,
+    "mock_medium": 0,
+    "high_overlap": 1,
+    "medium_overlap": 0,
+    "high_total": 1,
+    "medium_total": 0
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "src/upload.ts",
+      "sources": ["mock-stub", "safe-fail"],
+      "severity_disagreement": "safe-fail: HIGH, mock-stub: MEDIUM"
+    }
+  ]
+}

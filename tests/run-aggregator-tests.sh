@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# Aggregator regression harness.
+#
+# For each fixture under tests/fixtures/aggregator/<case>/:
+#   - safe-fail.md + mock-stub.md (+ optional known-clean.txt) are the inputs
+#   - expected.json is a *partial* JSON spec; the harness asserts a fixed set
+#     of top-level structures (it is NOT a fully recursive deep-equal):
+#       * counts: each present key is checked against actual.counts[key]
+#       * findings_count_min: lower bound on len(actual.findings)
+#       * findings: each expected entry must match SOME actual finding on all
+#         its specified keys; `sources` and `source_finding_ids` are compared
+#         as sorted lists
+#       * findings_by_file: keyed by File; each spec is matched against the
+#         actual finding with that file; `recommended_fix_contains` does a
+#         substring check on `recommended_fix`
+#       * must_fail: declares the aggregator must exit non-zero and stderr
+#         must contain `stderr_contains_path` (substring) and/or
+#         `stderr_contains_pattern` (regex)
+#
+# Keys not in this set are ignored. Add new structures to assert_subset() if
+# new fixture cases need them.
+#
+# The point of this harness is mechanical regression coverage of dedup,
+# fuzzy-match, severity merge, known-clean reclassification, and fail-loud
+# error paths. The judgment-layer behavior (LLM filling placeholders) is out
+# of scope.
+
+set -euo pipefail
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "ERROR: python3 is required for the aggregator harness." >&2
+  exit 2
+fi
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+repo_root=$(cd "$script_dir/.." && pwd)
+aggregator="$repo_root/skills/dishonest-code-audit/lib/aggregate.py"
+fixtures_root="$repo_root/tests/fixtures/aggregator"
+
+if [ ! -f "$aggregator" ]; then
+  echo "ERROR: aggregator not found at $aggregator" >&2
+  exit 2
+fi
+if [ ! -d "$fixtures_root" ]; then
+  echo "ERROR: $fixtures_root not found." >&2
+  exit 2
+fi
+
+total_cases=0
+failed_cases=0
+
+# Compare a partial-expected JSON (subset) against an actual JSON file.
+# Returns 0 on full subset-match, 1 with a diagnostic on mismatch.
+assert_subset() {
+  local expected_path="$1"
+  local actual_path="$2"
+  local case_name="$3"
+
+  python3 - "$expected_path" "$actual_path" "$case_name" <<'PY'
+import json, sys
+
+expected_path, actual_path, case_name = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(expected_path) as f: expected = json.load(f)
+with open(actual_path) as f: actual = json.load(f)
+
+errors = []
+
+def check_counts(exp, act, path):
+    for k, v in exp.items():
+        if k not in act:
+            errors.append(f"{path}.{k}: missing in actual")
+        elif act[k] != v:
+            errors.append(f"{path}.{k}: expected {v!r}, got {act[k]!r}")
+
+# 1. counts: strict per-key subset check.
+if "counts" in expected:
+    check_counts(expected["counts"], actual.get("counts", {}), "counts")
+
+# 2. findings_count_min: lower bound on number of findings.
+if "findings_count_min" in expected:
+    actual_n = len(actual.get("findings", []))
+    if actual_n < expected["findings_count_min"]:
+        errors.append(f"findings: expected at least {expected['findings_count_min']}, got {actual_n}")
+
+# 3. findings (list of partial-finding specs): for each expected, require at
+#    least one actual finding matching all specified keys.
+if "findings" in expected:
+    for i, exp_f in enumerate(expected["findings"]):
+        matched = False
+        for act_f in actual.get("findings", []):
+            ok = True
+            for k, v in exp_f.items():
+                if k == "sources":
+                    if sorted(act_f.get("sources", [])) != sorted(v):
+                        ok = False; break
+                elif k == "source_finding_ids":
+                    if sorted(act_f.get("source_finding_ids", [])) != sorted(v):
+                        ok = False; break
+                else:
+                    if act_f.get(k) != v:
+                        ok = False; break
+            if ok:
+                matched = True
+                break
+        if not matched:
+            errors.append(f"findings[{i}]: no actual finding matched expected spec {exp_f!r}")
+
+# 4. findings_by_file: map of file -> partial-finding spec.
+if "findings_by_file" in expected:
+    by_file = {f["file"]: f for f in actual.get("findings", [])}
+    for fname, exp_f in expected["findings_by_file"].items():
+        if fname not in by_file:
+            errors.append(f"findings_by_file: file {fname!r} not present in actual findings")
+            continue
+        act_f = by_file[fname]
+        for k, v in exp_f.items():
+            if k == "recommended_fix_contains":
+                if v not in (act_f.get("recommended_fix") or ""):
+                    errors.append(f"findings_by_file[{fname}].recommended_fix: expected substring {v!r}, got {act_f.get('recommended_fix')!r}")
+            else:
+                if act_f.get(k) != v:
+                    errors.append(f"findings_by_file[{fname}].{k}: expected {v!r}, got {act_f.get(k)!r}")
+
+# 5. known_clean_surfaces: each expected entry must match SOME actual
+#    known_clean_surfaces entry on all specified keys (matched by `file`).
+if "known_clean_surfaces" in expected:
+    by_file = {e["file"]: e for e in actual.get("known_clean_surfaces", [])}
+    for i, exp_e in enumerate(expected["known_clean_surfaces"]):
+        ef = exp_e.get("file")
+        if ef not in by_file:
+            errors.append(f"known_clean_surfaces[{i}]: file {ef!r} not present in actual")
+            continue
+        act_e = by_file[ef]
+        for k, v in exp_e.items():
+            if act_e.get(k) != v:
+                errors.append(f"known_clean_surfaces[{ef}].{k}: expected {v!r}, got {act_e.get(k)!r}")
+
+if errors:
+    print(f"FAIL [{case_name}]:", file=sys.stderr)
+    for e in errors:
+        print(f"  - {e}", file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+PY
+}
+
+for fixture_dir in "$fixtures_root"/*/; do
+  case_name=$(basename "$fixture_dir")
+  total_cases=$((total_cases + 1))
+
+  # Strip trailing slash so concatenated paths don't have "//" — Python's Path
+  # normalizes that away in its error messages, which makes a literal grep fail.
+  fixture_dir=${fixture_dir%/}
+  safe_fail="$fixture_dir/safe-fail.md"
+  mock_stub="$fixture_dir/mock-stub.md"
+  expected="$fixture_dir/expected.json"
+  known_clean="$fixture_dir/known-clean.txt"
+  # Optional: fixture can override the --known-clean-surfaces argument by writing
+  # the literal path string into known-clean-arg.txt. Used by fail-loud cases
+  # that need to pass a non-existent path. The content is read verbatim.
+  known_clean_arg_file="$fixture_dir/known-clean-arg.txt"
+  # Optional: extra CLI flags appended to the aggregator invocation, one per line.
+  # Lines beginning with `#` and empty lines are ignored. Used to exercise
+  # behavior gated on flags (e.g. --case-insensitive-paths).
+  extra_args_file="$fixture_dir/extra-args.txt"
+
+  if [ ! -f "$safe_fail" ] || [ ! -f "$mock_stub" ] || [ ! -f "$expected" ]; then
+    echo "FAIL [$case_name]: missing safe-fail.md, mock-stub.md, or expected.json" >&2
+    failed_cases=$((failed_cases + 1))
+    continue
+  fi
+
+  tmp_out=$(mktemp -d)
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp_out'" EXIT
+
+  # Must-fail case: expected.json contains a top-level `must_fail` object with
+  # `stderr_contains_path` (substring) and/or `stderr_contains_pattern` (regex).
+  # Assert exit != 0 and the stderr contains both strings/patterns.
+  must_fail_path=$(python3 -c 'import json,sys
+e=json.load(open(sys.argv[1]))
+mf=e.get("must_fail") or {}
+print(mf.get("stderr_contains_path",""))' "$expected")
+  must_fail_pattern=$(python3 -c 'import json,sys
+e=json.load(open(sys.argv[1]))
+mf=e.get("must_fail") or {}
+print(mf.get("stderr_contains_pattern",""))' "$expected")
+
+  if [ -n "$must_fail_path" ] || [ -n "$must_fail_pattern" ]; then
+    args=(
+      --safe-fail "$safe_fail"
+      --mock-stub "$mock_stub"
+      --out-dir "$tmp_out"
+      --scope test --date 2026-05-18
+    )
+    if [ -f "$known_clean_arg_file" ]; then
+      args+=( --known-clean-surfaces "$(cat "$known_clean_arg_file")" )
+    elif [ -f "$known_clean" ]; then
+      args+=( --known-clean-surfaces "$known_clean" )
+    fi
+    if [ -f "$extra_args_file" ]; then
+      while IFS= read -r extra_arg; do
+        [ -z "$extra_arg" ] && continue
+        case "$extra_arg" in \#*) continue ;; esac
+        args+=( "$extra_arg" )
+      done < "$extra_args_file"
+    fi
+
+    set +e
+    stderr_capture=$(python3 "$aggregator" "${args[@]}" 2>&1 >/dev/null)
+    rc=$?
+    set -e
+
+    if [ "$rc" -eq 0 ]; then
+      echo "FAIL [$case_name]: aggregator exited 0; expected non-zero" >&2
+      failed_cases=$((failed_cases + 1))
+      rm -rf "$tmp_out"
+      trap - EXIT
+      continue
+    fi
+    if [ -n "$must_fail_path" ] && ! printf '%s' "$stderr_capture" | grep -qF "$must_fail_path"; then
+      echo "FAIL [$case_name]: stderr missing required substring '$must_fail_path'" >&2
+      echo "       stderr was:" >&2
+      printf '%s\n' "$stderr_capture" | sed 's/^/         /' >&2
+      failed_cases=$((failed_cases + 1))
+      rm -rf "$tmp_out"
+      trap - EXIT
+      continue
+    fi
+    if [ -n "$must_fail_pattern" ] && ! printf '%s' "$stderr_capture" | grep -qE -- "$must_fail_pattern"; then
+      echo "FAIL [$case_name]: stderr missing required pattern '$must_fail_pattern'" >&2
+      echo "       stderr was:" >&2
+      printf '%s\n' "$stderr_capture" | sed 's/^/         /' >&2
+      failed_cases=$((failed_cases + 1))
+      rm -rf "$tmp_out"
+      trap - EXIT
+      continue
+    fi
+    echo "OK   [$case_name]: aggregator exited non-zero with required stderr markers"
+    rm -rf "$tmp_out"
+    trap - EXIT
+    continue
+  fi
+
+  # Well-formed cases: run aggregator, compare AGGREGATE.json against expected subset.
+  args=(
+    --safe-fail "$safe_fail"
+    --mock-stub "$mock_stub"
+    --out-dir "$tmp_out"
+    --scope "$case_name"
+    --date 2026-05-18
+  )
+  if [ -f "$known_clean" ]; then
+    args+=( --known-clean-surfaces "$known_clean" )
+  fi
+  if [ -f "$extra_args_file" ]; then
+    while IFS= read -r extra_arg; do
+      [ -z "$extra_arg" ] && continue
+      case "$extra_arg" in \#*) continue ;; esac
+      args+=( "$extra_arg" )
+    done < "$extra_args_file"
+  fi
+
+  if ! python3 "$aggregator" "${args[@]}" >/dev/null 2>"$tmp_out/stderr"; then
+    echo "FAIL [$case_name]: aggregator exited non-zero on well-formed input" >&2
+    sed 's/^/         /' "$tmp_out/stderr" >&2 || true
+    failed_cases=$((failed_cases + 1))
+    rm -rf "$tmp_out"
+    trap - EXIT
+    continue
+  fi
+
+  if ! assert_subset "$expected" "$tmp_out/AGGREGATE.json" "$case_name"; then
+    failed_cases=$((failed_cases + 1))
+    rm -rf "$tmp_out"
+    trap - EXIT
+    continue
+  fi
+
+  echo "OK   [$case_name]: AGGREGATE.json matches expected subset"
+  rm -rf "$tmp_out"
+  trap - EXIT
+done
+
+echo
+echo "Summary: $total_cases cases, $failed_cases failures"
+
+if [ "$failed_cases" = 0 ]; then
+  exit 0
+else
+  exit 1
+fi

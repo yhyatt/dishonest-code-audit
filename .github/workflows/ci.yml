@@ -23,6 +23,7 @@ jobs:
         run: |
           shellcheck -S warning \
             tests/run-fixtures.sh \
+            tests/run-aggregator-tests.sh \
             tests/lib/extract-bash.sh \
             tests/lib/validate-frontmatter.sh
 
@@ -46,3 +47,6 @@ jobs:
 
       - name: Fixture mechanical-sweep harness
         run: bash tests/run-fixtures.sh
+
+      - name: Aggregator regression harness
+        run: bash tests/run-aggregator-tests.sh

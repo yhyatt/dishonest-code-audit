@@ -1,0 +1,2 @@
+known_clean_surfaces:
+- src/components/DemoSandbox.tsx — demo-only sandbox, no-op buttons are intentional

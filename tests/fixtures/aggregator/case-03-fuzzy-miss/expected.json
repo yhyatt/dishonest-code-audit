@@ -1,0 +1,11 @@
+{
+  "counts": {
+    "safe_high": 1,
+    "mock_medium": 1,
+    "high_overlap": 0,
+    "medium_overlap": 0,
+    "high_total": 1,
+    "medium_total": 1
+  },
+  "findings_count_min": 2
+}

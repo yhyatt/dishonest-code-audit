@@ -1,0 +1,2 @@
+src/Toast.tsx — valid entry, dash separator works
+this line has no separator and no reason and should fail loud

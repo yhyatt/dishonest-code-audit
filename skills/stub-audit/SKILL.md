@@ -76,7 +76,11 @@ Run these in parallel where possible. Concatenate the results to your candidate 
 
 ### Phase 3: Judgment pass (this is where the model earns its keep)
 
-For each candidate, open the surrounding 20 to 40 lines (use `Read` with `offset`/`limit`, or `find_symbol` + `get_function_source` from token-savior for symbol-level fetches in large files). Then answer four questions in order:
+For each candidate, open the surrounding 20 to 40 lines (use `Read` with `offset`/`limit`, or `find_symbol` + `get_function_source` from token-savior for symbol-level fetches in large files).
+
+For the **try/finally-no-catch** candidate type specifically, the mechanical sweep only confirms a `try…throw…finally` shape exists in the file. Open the enclosing function and verify there is no `catch` clause between the `try` and `finally` blocks. A `catch` elsewhere in the file but not in this function still scores HIGH — the throw becomes an unhandled rejection and the user sees the cleanup (spinner clears, button re-enables) as if the operation succeeded. This pattern is also covered by `silent-failure-hunter` from the error-path angle; stub-audit picks it up here as redundant double-coverage so a single specialist's miss does not lose the finding.
+
+Then answer four questions in order:
 
 1. **Is this user-reachable?** Trace from a route entry point or a top-level component. If it's behind a feature flag that is off, a dev-only branch (`process.env.NODE_ENV !== 'production'`, `if settings.DEBUG`, etc.), or in a file that no production entry imports, downgrade to LOW or FALSE-POSITIVE and note the gate.
 2. **Does the user see a broken affordance, or does the code silently work?** A button labelled "שיתוף תוצאות" with `onClick={() => {}}` is HIGH. A no-op `onChange` on a controlled component whose state is also set elsewhere is FALSE-POSITIVE. The bar is: does the user expect something to happen, and does nothing happen?
@@ -224,5 +228,6 @@ Patterns this skill has caught in real pre-ship audits (project names elided):
 - **`onClick={() => {}}` on a labelled secondary button.** A "share results" button styled to look identical to working primary actions, with an empty handler and a stale `// TODO(slice-12)` comment after slice 12 had shipped.
 - **`handleAbandon` that opens a confirm dialog then navigates without an API call.** Server-side session schema and RPC both already supported the abandon transition; the UI just did not call them. User believes the session is abandoned; server still considers it live.
 - **Route handler returning hardcoded sample data.** A `route.ts` (or `views.py`, or HTTP handler) wired into a real endpoint that responds with `{ items: [/* sample */] }` instead of querying the database.
+- **Mutation handler shaped `try { fetch(...); if (!res.ok) throw } finally { clearSpinner() }` with no `catch`.** The throw becomes an unhandled rejection. The spinner clears, the button re-enables, and the user sees the affordance complete as if it succeeded. The `silent-failure-hunter` specialist catches this from the error-path angle; stub-audit picks it up from the happy-path angle as a "silent-success affordance" — a button whose visible behavior promises success on every click.
 
 The pattern is always the same: an affordance that looks real and behaves fake. Weight these heavily during the judgment pass.
