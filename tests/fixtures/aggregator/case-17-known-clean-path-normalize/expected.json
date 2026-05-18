@@ -1,0 +1,21 @@
+{
+  "counts": {
+    "safe_high": 1,
+    "high_total": 0,
+    "high_reclassified": 1,
+    "intentional_total": 1
+  },
+  "findings": [
+    {
+      "file": "src/save.ts",
+      "severity": "INTENTIONAL",
+      "pre_reclass_severity": "HIGH"
+    }
+  ],
+  "known_clean_surfaces": [
+    {
+      "file": "./src/save.ts",
+      "matched": true
+    }
+  ]
+}

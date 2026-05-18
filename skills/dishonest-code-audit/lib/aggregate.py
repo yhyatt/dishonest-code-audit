@@ -465,19 +465,40 @@ def parse_known_clean(text: Optional[str], source_path: str = "<known-clean>") -
     return out
 
 
-def apply_known_clean(merged: list[MergedFinding], clean: list[tuple[str, str, str]]) -> None:
+def apply_known_clean(
+    merged: list[MergedFinding],
+    clean: list[tuple[str, str, str]],
+    repo_root: Optional[str] = None,
+    case_insensitive_paths: bool = False,
+) -> set[int]:
     """Reclassify any merged finding whose file (and symbol-text) matches a
     known-clean entry as FALSE-POSITIVE / INTENTIONAL, recording the reason.
+
+    Known-clean entry paths are run through the same `normalize_path` logic
+    as `File:` values in the source reports, so a caller can supply
+    `./components/Foo.tsx` or an absolute path under repo_root without
+    mismatching. Returns the set of indices into `clean` that actually
+    matched at least one finding — the orchestrator's "Known-clean surfaces
+    (verified)" section lists these; unmatched entries go into a separate
+    "not observed in this run" section so the report cannot falsely claim
+    verification.
     """
+    matched_idx: set[int] = set()
+    normalized_clean = [
+        (normalize_path(cf, repo_root, case_insensitive_paths), sym, reason)
+        for cf, sym, reason in clean
+    ]
     for mf in merged:
-        for cf, sym, reason in clean:
+        for i, (cf, sym, reason) in enumerate(normalized_clean):
             if mf.file == cf or mf.file.endswith("/" + cf):
                 if not sym or sym.lower() in mf.user_visible_lie.lower() or sym.lower() in mf.evidence.lower():
                     mf.pre_reclass_severity = mf.severity
                     mf.severity = "INTENTIONAL"
                     mf.known_clean_match = reason
                     mf.recommended_fix = f"none — marked clean by caller: {reason}"
+                    matched_idx.add(i)
                     break
+    return matched_idx
 
 
 def render_finding_block(mf: MergedFinding, new_id: str) -> str:
@@ -517,6 +538,7 @@ def render_markdown(
     safe_fail_path: str,
     mock_stub_path: str,
     known_clean: list[tuple[str, str, str]],
+    known_clean_matched_idx: Optional[set[int]] = None,
 ) -> str:
     by_sev: dict[str, list[MergedFinding]] = {"HIGH": [], "MEDIUM": [], "LOW": [], "INTENTIONAL": []}
     for mf in merged:
@@ -546,9 +568,15 @@ def render_markdown(
         for mf in by_sev["INTENTIONAL"]
     ]
 
-    clean_section_lines = [
-        f"- `{cf}` ({sym or '—'}): {reason}" for cf, sym, reason in known_clean
-    ]
+    matched_idx = known_clean_matched_idx or set()
+    matched_clean_lines: list[str] = []
+    unmatched_clean_lines: list[str] = []
+    for i, (cf, sym, reason) in enumerate(known_clean):
+        line = f"- `{cf}` ({sym or '—'}): {reason}"
+        if i in matched_idx:
+            matched_clean_lines.append(line)
+        else:
+            unmatched_clean_lines.append(line)
 
     parts: list[str] = []
     parts.append(f"# Dishonest Code Audit: {scope}\n")
@@ -586,10 +614,15 @@ def render_markdown(
     parts.append("")
     parts.append("## False positives / intentional patterns\n")
     parts.extend(fp_bullets if fp_bullets else ["_None._"])
-    if clean_section_lines:
+    if matched_clean_lines:
         parts.append("")
-        parts.append("### Known-clean surfaces (caller-supplied; verified)\n")
-        parts.extend(clean_section_lines)
+        parts.append("### Known-clean surfaces (caller-supplied; verified intact in this run)\n")
+        parts.extend(matched_clean_lines)
+    if unmatched_clean_lines:
+        parts.append("")
+        parts.append("### Known-clean surfaces (caller-supplied; not observed in this run)\n")
+        parts.append("These entries did not match any finding emitted by either specialist. They may have been listed defensively (the surface stayed clean and produced no candidate findings), OR the caller supplied a typo / outdated path. Verify each before relying on it as a clean signal.\n")
+        parts.extend(unmatched_clean_lines)
     parts.append("")
     parts.append("## Cross-audit gaps (tuning signal)\n")
     parts.append("<!-- LLM_FILL: cross_audit_gaps — review the `single_source_findings` array in AGGREGATE.json. For each, judge whether the OTHER specialist could have caught it from their own framing. Format: `<HIGH-ID>: <which specialist caught it> — <which specialist could have caught it independently and didn't> — <one-line tuning suggestion>`. Write `None — every finding sits on a single specialist's domain.` if no feasible cross-coverage. -->\n")
@@ -606,43 +639,50 @@ def render_markdown(
 def build_counts(safe: list[Finding], mock: list[Finding], merged: list[MergedFinding]) -> dict:
     """Build the count dict that drives both the JSON sidecar and the rendered equation.
 
-    Overlap counts must be computed against the PRE-reclassification severity
-    so the rendered equation reconciles even when `apply_known_clean` flipped a
-    merged finding to INTENTIONAL. The reclassified terms appear as their own
-    line in the equation. (B1.)
-    """
-    def count_sev(findings, sev): return sum(1 for f in findings if f.severity == sev)
-    def count_merged_sev(sev): return sum(1 for m in merged if m.severity == sev)
+    The arithmetic invariant the rendered equation depends on is
+    `safe + mock - overlap - reclassified = total` for each severity bucket.
+    To keep this honest under severity disagreement AND known-clean
+    reclassification, per-source counts are computed against the EFFECTIVE
+    merged severity, not the raw source severity. A safe-fail HIGH plus a
+    mock-stub MEDIUM that merge to HIGH each contribute 1 to safe_high and
+    mock_high — the mock-stub source "promoted into" the HIGH bucket. The
+    raw mock-stub MEDIUM doesn't appear in the equation because it got
+    subsumed by the merge.
 
+    `total` reflects the current (post-reclassification) severity. `reclassified`
+    counts merged findings that were reclassified out of this bucket into
+    INTENTIONAL. The equation: <effective contributions> - <doubles counted in
+    overlap> - <reclassified out> = <still in the bucket>.
+    """
     def effective_sev(m: MergedFinding) -> str:
         # The severity the finding had before known-clean reclassification.
         # For un-reclassified findings this is just `m.severity`.
         return m.pre_reclass_severity or m.severity
 
-    def overlap_sev(sev):
-        return sum(1 for m in merged if len(m.sources) == 2 and effective_sev(m) == sev)
+    counts: dict[str, int] = {}
+    for sev_lo, sev_up in [("high", "HIGH"), ("medium", "MEDIUM"), ("low", "LOW")]:
+        safe_n = mock_n = overlap_n = reclass_n = total_n = 0
+        for m in merged:
+            esev = effective_sev(m)
+            if esev == sev_up:
+                if "safe-fail" in m.sources:
+                    safe_n += 1
+                if "mock-stub" in m.sources:
+                    mock_n += 1
+                if len(m.sources) == 2:
+                    overlap_n += 1
+                if m.pre_reclass_severity == sev_up:
+                    reclass_n += 1
+            if m.severity == sev_up:
+                total_n += 1
+        counts[f"safe_{sev_lo}"] = safe_n
+        counts[f"mock_{sev_lo}"] = mock_n
+        counts[f"{sev_lo}_overlap"] = overlap_n
+        counts[f"{sev_lo}_reclassified"] = reclass_n
+        counts[f"{sev_lo}_total"] = total_n
 
-    def reclassified_sev(sev):
-        return sum(1 for m in merged if m.pre_reclass_severity == sev)
-
-    return {
-        "safe_high": count_sev(safe, "HIGH"),
-        "safe_medium": count_sev(safe, "MEDIUM"),
-        "safe_low": count_sev(safe, "LOW"),
-        "mock_high": count_sev(mock, "HIGH"),
-        "mock_medium": count_sev(mock, "MEDIUM"),
-        "mock_low": count_sev(mock, "LOW"),
-        "high_overlap": overlap_sev("HIGH"),
-        "medium_overlap": overlap_sev("MEDIUM"),
-        "low_overlap": overlap_sev("LOW"),
-        "high_reclassified": reclassified_sev("HIGH"),
-        "medium_reclassified": reclassified_sev("MEDIUM"),
-        "low_reclassified": reclassified_sev("LOW"),
-        "high_total": count_merged_sev("HIGH"),
-        "medium_total": count_merged_sev("MEDIUM"),
-        "low_total": count_merged_sev("LOW"),
-        "intentional_total": sum(1 for m in merged if m.severity in {"FALSE-POSITIVE", "INTENTIONAL"}),
-    }
+    counts["intentional_total"] = sum(1 for m in merged if m.severity in {"FALSE-POSITIVE", "INTENTIONAL"})
+    return counts
 
 
 def main(argv: list[str]) -> int:
@@ -679,12 +719,17 @@ def main(argv: list[str]) -> int:
     merged = deduplicate(safe + mock, jaccard_threshold=args.jaccard_threshold)
 
     known_clean = []
+    known_clean_matched_idx: set[int] = set()
     if args.known_clean_surfaces is not None:
         known_clean = parse_known_clean(
             args.known_clean_surfaces.read_text(encoding="utf-8"),
             source_path=str(args.known_clean_surfaces),
         )
-        apply_known_clean(merged, known_clean)
+        known_clean_matched_idx = apply_known_clean(
+            merged, known_clean,
+            repo_root=args.repo_root,
+            case_insensitive_paths=args.case_insensitive_paths,
+        )
 
     counts = build_counts(safe, mock, merged)
 
@@ -711,7 +756,13 @@ def main(argv: list[str]) -> int:
         "findings": [asdict(m) for m in merged],
         "single_source_findings": single_source,
         "known_clean_surfaces": [
-            {"file": cf, "symbol": sym, "reason": reason} for cf, sym, reason in known_clean
+            {
+                "file": cf,
+                "symbol": sym,
+                "reason": reason,
+                "matched": i in known_clean_matched_idx,
+            }
+            for i, (cf, sym, reason) in enumerate(known_clean)
         ],
         "source_reports": {
             "safe_fail": str(args.safe_fail),
@@ -732,6 +783,7 @@ def main(argv: list[str]) -> int:
         safe_fail_path=str(args.safe_fail),
         mock_stub_path=str(args.mock_stub),
         known_clean=known_clean,
+        known_clean_matched_idx=known_clean_matched_idx,
     )
     (args.out_dir / "DISHONEST-CODE-AUDIT.md").write_text(md, encoding="utf-8")
 

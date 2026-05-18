@@ -1,0 +1,2 @@
+# caller uses ./ prefix; should still match the parsed File: value `src/save.ts`
+./src/save.ts — leading ./ prefix should normalize before comparison

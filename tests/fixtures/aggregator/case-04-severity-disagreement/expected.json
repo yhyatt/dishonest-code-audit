@@ -1,7 +1,12 @@
 {
   "counts": {
-    "high_total": 1,
+    "safe_high": 1,
+    "mock_high": 1,
+    "safe_medium": 0,
+    "mock_medium": 0,
     "high_overlap": 1,
+    "medium_overlap": 0,
+    "high_total": 1,
     "medium_total": 0
   },
   "findings": [

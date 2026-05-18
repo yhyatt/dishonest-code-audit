@@ -121,6 +121,20 @@ if "findings_by_file" in expected:
                 if act_f.get(k) != v:
                     errors.append(f"findings_by_file[{fname}].{k}: expected {v!r}, got {act_f.get(k)!r}")
 
+# 5. known_clean_surfaces: each expected entry must match SOME actual
+#    known_clean_surfaces entry on all specified keys (matched by `file`).
+if "known_clean_surfaces" in expected:
+    by_file = {e["file"]: e for e in actual.get("known_clean_surfaces", [])}
+    for i, exp_e in enumerate(expected["known_clean_surfaces"]):
+        ef = exp_e.get("file")
+        if ef not in by_file:
+            errors.append(f"known_clean_surfaces[{i}]: file {ef!r} not present in actual")
+            continue
+        act_e = by_file[ef]
+        for k, v in exp_e.items():
+            if act_e.get(k) != v:
+                errors.append(f"known_clean_surfaces[{ef}].{k}: expected {v!r}, got {act_e.get(k)!r}")
+
 if errors:
     print(f"FAIL [{case_name}]:", file=sys.stderr)
     for e in errors:
