@@ -21,7 +21,9 @@ Each specialist's prompt is prepended with a ~150-word guard treating repository
 
 ## Why this exists
 
-Born from a real pre-ship audit of a Next.js + Supabase + TypeScript codebase. The audits caught:
+Born from real pre-ship audits of a Next.js + Supabase + TypeScript codebase. Two wet runs across two slices caught problems that survived manual review.
+
+### First wet run (slice 12)
 
 - Two HIGH live-tournament correctness bugs (player submits answer, server returns 5xx, UI advances as if successful).
 - Three MEDIUM clipboard liar-toasts (toast string fires even when `writeText` rejected).
@@ -29,7 +31,16 @@ Born from a real pre-ship audit of a Next.js + Supabase + TypeScript codebase. T
 - One HIGH hand-drawn SVG "QR code" that did not encode its `value` prop.
 - One HIGH labelled action button with empty `onClick` and a stale `// TODO(slice-12)` marker.
 
-All of those landed on `main` despite passing manual review. The skill exists because static analysis cannot tell you whether a stub matters; the model can, given the right candidate list and the right judgment lens.
+### Second wet run (post slice-12 hotfixes)
+
+13 HIGH and 13 MEDIUM findings, dominated by two patterns the slice-12 fixes did not generalize:
+
+- **Seven host-control mutation handlers shaped `try { ... if (!res.ok) throw } finally { clearSpinner() }` with no `catch`.** Host clicks start / close-window / resolve / advance, RPC fails, spinner clears, no toast, no log. The thrown error becomes an unhandled promise rejection; the affordance completes as if the click succeeded. `handleAbandon` (the slice-12 fix) was the only handler with the correct `catch` clause; the other six were the same shape pre-fix.
+- **Five state-endpoint handlers that destructure `{ data }` without `error`, then `?? []` / `?? null` every value.** RLS denial, connectivity loss, or schema drift leak as 200 OK with partial payloads. The host renders an impossible "0 players, 0 questions, 0 votes" lobby with nothing in the logs.
+
+The same run verified all four slice-12 hotfixes still intact (via `known_clean_surfaces`), produced four cosmetic LOW findings (stale JSDoc comments) that the error-path specialist would not look at, and emitted a cross-audit-gaps section flagging the cases where each specialist could in principle have caught the other's findings independently. That tuning signal drove the `try/finally`-with-throw-no-catch pattern now shipped in `stub-audit`.
+
+Across both runs, every catch landed on `main` despite passing manual review. The skill exists because static analysis cannot tell you whether a stub matters or whether a swallowed error reaches the user; the model can, given the right candidate list and the right judgment lens.
 
 ## Supported stacks
 
@@ -107,7 +118,15 @@ Before merging or deploying:
 
 > "Run a dishonest code audit on this branch before I deploy."
 
-The orchestrator auto-detects the TypeScript and React profiles, scopes the diff to `app/`, `components/`, `lib/`, and writes a combined `DISHONEST-CODE-AUDIT.md` with HIGH/MEDIUM/LOW findings. Typical HIGH catches on a real feature branch: a labeled button with empty `onClick`, a route handler returning canned mock data, a toast that fires inside a `.catch` after the server already returned 5xx.
+The orchestrator auto-detects the TypeScript and React profiles, scopes the diff to `app/`, `components/`, `lib/`, and writes a combined `DISHONEST-CODE-AUDIT.md` with HIGH/MEDIUM/LOW findings. Typical HIGH catches on a real feature branch: a labeled button with empty `onClick`, a route handler returning canned mock data, a toast that fires inside a `.catch` after the server already returned 5xx, a mutation handler shaped `try { fetch(); if (!res.ok) throw } finally { clearSpinner() }` with no `catch` clause.
+
+### 1a. Re-audit with last sprint's hotfixes marked clean
+
+When auditing a branch built on top of last sprint's work:
+
+> "Run a dishonest code audit. The share-button, abandon-handler, and AnsweringView res.ok-checks were hotfixed in the prior slice and are verified intact."
+
+Pass the verified surfaces as a `known_clean_surfaces` list to the orchestrator. Matches get classified as INTENTIONAL with the caller's reason recorded; unmatched entries are reported in a "not observed in this run" section so a typoed path cannot quietly false-positive your hotfix as still-broken or quietly false-negative it as still-clean.
 
 ### 2. Stub audit on inherited or older code
 
@@ -139,15 +158,29 @@ Orchestrator narrows the scope to that path. Useful for keeping the combined rep
 
 ## Output
 
-Each audit writes a markdown report:
+Each audit writes four files to the output directory:
 
-- `<output-dir>/SAFE-FAIL-AUDIT.md` (from silent-failure-hunter)
-- `<output-dir>/MOCK-STUB-AUDIT.md` (from stub-audit)
-- `<output-dir>/DISHONEST-CODE-AUDIT.md` (combined, deduplicated, written by the orchestrator)
+- `<output-dir>/SAFE-FAIL-AUDIT.md` — silent-failure-hunter's report.
+- `<output-dir>/MOCK-STUB-AUDIT.md` — stub-audit's report.
+- `<output-dir>/AGGREGATE.json` — machine-readable single source of truth: every finding, dedup pairings, severity merges, counts, `single_source_findings` array, known-clean matches.
+- `<output-dir>/DISHONEST-CODE-AUDIT.md` — combined report. The Python aggregator fills the mechanical sections deterministically (every Finding block, counts, LOW bullets, false-positive list, known-clean verification). Three sections are left as `<!-- LLM_FILL: ... -->` placeholders for the orchestrator to write: headline, dominant patterns, cross-audit gaps.
 
 Default `<output-dir>` is `.dishonest-code-audit-<YYYY-MM-DD>/` at the repo root. Project-specific conventions (e.g., `.slice-XX-prep/`) are honored only when the caller passes an explicit directory.
 
-Every HIGH and MEDIUM finding is emitted as a structured block the orchestrator can parse and deduplicate deterministically. See the schema in `skills/stub-audit/SKILL.md` ("Structured finding schema").
+Every HIGH and MEDIUM finding is emitted as a structured block. See the schema in `skills/stub-audit/SKILL.md` ("Structured finding schema").
+
+### Deterministic aggregator
+
+`skills/dishonest-code-audit/lib/aggregate.py` is the Python aggregator. It exists because the orchestrator LLM miscounted in early runs; a deterministic parser eliminates that failure mode for the mechanical parts of the report. The LLM still owns the narrative (headline, dominant patterns, cross-audit gaps) which is judgment work the parser cannot do.
+
+Properties worth knowing:
+
+- **Arithmetic invariant.** Every severity bucket reconciles as `safe-fail + mock-stub - overlap - reclassified = total`. Per-source counts are computed against effective merged severity, so a safe-fail HIGH plus a mock-stub MEDIUM that merge to HIGH count as 1 contribution from each source to the HIGH bucket — the MEDIUM is correctly absent from the MEDIUM equation because the finding got promoted.
+- **Fail loud, never silent.** Malformed Finding block, unknown severity, duplicate `(file, line)` within a source, malformed `known_clean_surfaces` entry, missing `--known-clean-surfaces` path — every one of these raises with `file:line` and exits non-zero. The aggregator will not produce a green report on partial input.
+- **`--known-clean-surfaces`** lets the caller pass a list of `path[:symbol] — reason` entries (e.g., last sprint's hotfixes). Matches are reclassified to INTENTIONAL with the caller's reason recorded. Unmatched entries land in a "not observed in this run" section so the report cannot falsely claim verification for a typoed path.
+- **`--case-insensitive-paths`** casefolds File: values during dedup. Off by default because Linux is case-sensitive. Use on macOS APFS / Windows NTFS.
+
+The aggregator has 17 fixture cases under `tests/fixtures/aggregator/` covering dedup edge cases, severity merge, known-clean reclassification, and every fail-loud path.
 
 ## Classification
 
@@ -158,7 +191,7 @@ Both specialists use a shared severity model:
 - **LOW**: cosmetic markers, defensive defaults, intentional safe-fails with explanatory comments.
 - **FALSE-POSITIVE / INTENTIONAL**: pattern matches but is correct behavior.
 
-If the two specialists disagree on severity for the same site, the combined report uses the higher severity and records both opinions.
+If the two specialists disagree on severity for the same site, the combined report uses the higher severity and records both opinions in the merged Finding block. The aggregator's per-source count math accounts for this so the rendered equation reconciles.
 
 ## Contributing
 
