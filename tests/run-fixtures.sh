@@ -10,8 +10,8 @@
 # skills/stub-audit/profiles/*.md. If a profile's regex regresses, the
 # corresponding entry will fail to surface here.
 #
-# The judgment pass (model classifies HIGH/MEDIUM/LOW) is out of scope —
-# this harness only ensures the mechanical layer does not regress.
+# The judgment pass (model classifies HIGH/MEDIUM/LOW) is out of scope.
+# This harness only ensures the mechanical layer does not regress.
 #
 # Exit 0 on full hit. Exit 1 with a clear failure listing on miss.
 
@@ -90,7 +90,7 @@ PY
         'raise[[:space:]]+NotImplementedError' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
       ;;
 
-    # Python profile — bare-pass function body
+    # Python profile, bare-pass function body
     # def name(...): \n pass
     "def charge")
       # Match concrete def with bare pass or ellipsis body.
