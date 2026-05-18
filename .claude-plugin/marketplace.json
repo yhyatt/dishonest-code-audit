@@ -5,8 +5,8 @@
     "email": "hyatt.yonatan@gmail.com"
   },
   "metadata": {
-    "description": "Find code that lies to users — silent failures + mock/stub/placeholder code in production paths",
-    "version": "0.1.0"
+    "description": "Find code that lies to users — silent failures + mock/stub/placeholder code in production paths. Supports JS/TS, Python, Go, Rust, Ruby via pluggable stack profiles.",
+    "version": "0.2.0"
   },
   "plugins": [
     {
