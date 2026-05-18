@@ -33,7 +33,7 @@ PROFILES=()
 [ -f Gemfile ]           && PROFILES+=("ruby")
 
 # Framework detection runs only after the typescript profile loaded
-if [[ " ${PROFILES[*]} " =~ " typescript " ]]; then
+if printf '%s\n' "${PROFILES[@]}" | grep -qx "typescript"; then
   grep -q '"react"'    package.json 2>/dev/null && PROFILES+=("frameworks/react")
   grep -q '"vue"'      package.json 2>/dev/null && PROFILES+=("frameworks/vue")
   grep -q '"svelte"'   package.json 2>/dev/null && PROFILES+=("frameworks/svelte")
