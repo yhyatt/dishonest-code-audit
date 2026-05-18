@@ -36,7 +36,7 @@ Detect which stack profiles apply, then run each profile's mechanical candidate 
 ```bash
 PROFILES=()
 [ -f package.json ]      && PROFILES+=("typescript")
-[ -f pyproject.toml ] || [ -f setup.py ] || [ -f requirements.txt ] && PROFILES+=("python")
+{ [ -f pyproject.toml ] || [ -f setup.py ] || [ -f requirements.txt ]; } && PROFILES+=("python")
 [ -f go.mod ]            && PROFILES+=("go")
 [ -f Cargo.toml ]        && PROFILES+=("rust")
 [ -f Gemfile ]           && PROFILES+=("ruby")

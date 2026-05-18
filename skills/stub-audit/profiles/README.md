@@ -27,7 +27,7 @@ A stack profile owns: dead-code tool, TODO scanner, language-level grep patterns
 ```bash
 PROFILES=()
 [ -f package.json ]      && PROFILES+=("typescript")
-[ -f pyproject.toml ] || [ -f setup.py ] || [ -f requirements.txt ] && PROFILES+=("python")
+{ [ -f pyproject.toml ] || [ -f setup.py ] || [ -f requirements.txt ]; } && PROFILES+=("python")
 [ -f go.mod ]            && PROFILES+=("go")
 [ -f Cargo.toml ]        && PROFILES+=("rust")
 [ -f Gemfile ]           && PROFILES+=("ruby")
