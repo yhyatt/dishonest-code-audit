@@ -42,10 +42,10 @@ run_profile_grep() {
   local pattern="$2"
 
   case "$pattern" in
-    # React framework profile — frameworks/react.md
+    # React framework profile, frameworks/react.md
     "onClick={() => {}}")
       grep -rEl --include='*.tsx' --include='*.jsx' \
-        --exclude-dir=node_modules --exclude-dir='*.test.*' \
+        --exclude-dir=node_modules --exclude='*.test.*' \
         'onClick=\{\(\) => \{[[:space:]]*\}\}' "$fixture_dir" 2>/dev/null || true
       ;;
 
@@ -72,10 +72,13 @@ for dirpath, dirnames, filenames in os.walk(root):
 PY
       ;;
 
-    # Python profile, explicit unimplemented raises
+    # Python profile, explicit unimplemented raises.
+    # Mirrors python.md globs (!**/tests/**, !**/test_*.py, !**/*_test.py) and
+    # ruby.md globs (!**/spec/**, !**/test/**, !**/vendor/**).
     "raise NotImplementedError")
       grep -rEln --include='*.py' --include='*.rb' \
-        --exclude-dir=tests --exclude-dir=spec --exclude-dir=vendor \
+        --exclude-dir=tests --exclude-dir=test --exclude-dir=spec --exclude-dir=vendor \
+        --exclude='test_*.py' --exclude='*_test.py' \
         'raise[[:space:]]+NotImplementedError' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
       ;;
 
@@ -130,15 +133,15 @@ for dirpath, dirnames, filenames in os.walk(root):
 PY
       ;;
 
-    # Go profile, panic("not implemented")
+    # Go profile, panic("not implemented"). Mirrors go.md (!**/*_test.go, !**/vendor/**).
     'panic("not implemented")')
-      grep -rEln --include='*.go' --exclude-dir=vendor \
+      grep -rEln --include='*.go' --exclude-dir=vendor --exclude='*_test.go' \
         'panic\("[^"]*(not implemented|TODO|todo|unimplemented|stub|placeholder)' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
       ;;
 
-    # Rust profile — todo!() macro
+    # Rust profile, todo!() macro. Mirrors rust.md (!**/target/**, !**/tests/**).
     "todo!(")
-      grep -rEln --include='*.rs' --exclude-dir=target \
+      grep -rEln --include='*.rs' --exclude-dir=target --exclude-dir=tests \
         'todo!\s*\(' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
       ;;
 
