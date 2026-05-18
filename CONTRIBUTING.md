@@ -71,7 +71,7 @@ Stack profiles plug detection bash + skip-lists into `stub-audit` for a new lang
 Framework profiles layer on top of a stack profile to catch UI-affordance patterns. The current set covers `react`, `vue`, `svelte`, and `solidjs`. The shape is identical to a stack profile except:
 
 - The detection bash should be grep-only (no toolchain dependency beyond `ripgrep` / `grep`).
-- The "Worked examples" section is load-bearing — show one or two HIGH-severity patterns in the framework's idiomatic syntax so reviewers can pattern-match quickly.
+- The "Worked examples" section is load-bearing. Show one or two HIGH-severity patterns in the framework's idiomatic syntax so reviewers can pattern-match quickly.
 - Add framework detection to `skills/stub-audit/SKILL.md` Phase 1 inside the `if printf '%s\n' "${PROFILES[@]}" | grep -qx "typescript"; then` block. The framework profile loads only when its dependency is present in `package.json`.
 
 ## How to propose a new pattern
@@ -81,7 +81,7 @@ Inside an existing profile or skill:
 1. Add the grep / detection logic to the relevant profile file.
 2. Add (or extend) a fixture that contains a planted instance of the pattern.
 3. Extend `expected.json` and the `pattern_to_search` mapping.
-4. Run `bash tests/run-fixtures.sh` — must exit 0.
+4. Run `bash tests/run-fixtures.sh`. Must exit 0.
 5. Open a PR with the pattern's name, the rationale (what user-visible lie it surfaces), and one real-world example with the project elided.
 
 ## Semver policy
@@ -106,5 +106,5 @@ Bump `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` to the s
 ## Style
 
 - Direct, concrete writing. No marketing prose.
-- No em dashes (`—`) or en dashes (`–`) as casual sentence separators. The existing files use ` — ` (en-dash with surrounding spaces) heavily; keep that convention.
+- **No em dashes (`—`), en dashes (`–`), or `--` as casual sentence separators.** Use a comma, period, or colon. This matches the project's documentation style.
 - Lowercase casual sentence starts are fine in code comments and skill internals; use sentence case for headings.

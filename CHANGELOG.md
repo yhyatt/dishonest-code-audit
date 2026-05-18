@@ -29,7 +29,7 @@ All notable changes to this plugin are documented here. The format follows [Keep
 ### Removed
 
 - Project-specific tuning section that named a private codebase ("ballpark") and referenced an absolute path on the author's machine. Replaced with a neutral "Worked examples" section.
-- Inline grep sweep in `stub-audit/SKILL.md` Phase 2 — moved into the per-stack and per-framework profile files.
+- Inline grep sweep in `stub-audit/SKILL.md` Phase 2, moved into the per-stack and per-framework profile files.
 
 ### Fixed
 

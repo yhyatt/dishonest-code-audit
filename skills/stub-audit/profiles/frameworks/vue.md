@@ -7,7 +7,7 @@ Detected when `package.json` lists `"vue"` as a dependency.
 ## Detection bash
 
 ```bash
-# Empty @click / @submit / @change / v-on bindings — single-quote and double-quote variants
+# Empty @click / @submit / @change / v-on bindings: single-quote and double-quote variants
 rg -n \
   -e '@click=["\x27]\(\)\s*=>\s*\{\s*\}["\x27]' \
   -e '@submit=["\x27]\(\)\s*=>\s*\{\s*\}["\x27]' \
@@ -16,7 +16,7 @@ rg -n \
   --glob '*.vue' --glob '!**/*.test.*' --glob '!**/node_modules/**' \
   || true
 
-# Empty inline expression — @click=""
+# Empty inline expression: @click=""
 rg -n \
   -e '@click=""' \
   -e '@submit=""' \
@@ -24,7 +24,7 @@ rg -n \
   --glob '*.vue' --glob '!**/*.test.*' \
   || true
 
-# Options API methods with empty bodies — methods: { foo() {} } or foo: function() {}
+# Options API methods with empty bodies: methods: { foo() {} } or foo: function() {}
 rg -n --multiline --multiline-dotall \
   -e '[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)\s*\{\s*\}\s*,' \
   --glob '*.vue' --glob '!**/*.test.*' \

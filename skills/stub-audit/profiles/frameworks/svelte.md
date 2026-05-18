@@ -28,7 +28,7 @@ rg -n \
   --glob '*.svelte' --glob '!**/*.test.*' \
   || true
 
-# Empty exports — `export let foo;` followed by no consumption
+# Empty exports: `export let foo;` followed by no consumption
 rg -n \
   -e 'export\s+let\s+[a-zA-Z_][a-zA-Z0-9_]*\s*;' \
   --glob '*.svelte' --glob '!**/*.test.*' \
@@ -43,7 +43,7 @@ rg -n \
 
 ## Always-skip patterns (Svelte specific)
 
-- `export let foo;` props that are forwarded down to a child component via `<Child {foo} />` — the parent component does not consume the prop directly, but the binding is real.
+- `export let foo;` props that are forwarded down to a child component via `<Child {foo} />`. The parent component does not consume the prop directly, but the binding is real.
 - Empty `<script>` blocks in markup-only components.
 - SvelteKit `+layout.ts` files that exist purely to set `prerender = true` and have no other logic.
 - Bind directives (`bind:value={...}`) that route through a no-op-looking handler in a controlled-component pattern.

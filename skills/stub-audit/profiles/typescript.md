@@ -39,7 +39,7 @@ rg -n \
   --glob '!**/*.test.*' --glob '!**/vitest.setup.*' --glob '!**/test/**' --glob '!**/__tests__/**' \
   || true
 
-# Empty function bodies in non-test files (noisy — manual filter required)
+# Empty function bodies in non-test files (noisy, manual filter required)
 rg -n \
   -e 'function [a-zA-Z_][a-zA-Z0-9_]*\([^)]*\)\s*\{\s*\}' \
   -e '=>\s*\{\s*\}' \
@@ -70,7 +70,7 @@ Notes:
 - TypeScript empty interfaces / empty type aliases used as branding: `interface Brand {}`, `type X = {}`. These are language idioms, not stubs.
 - `Object.freeze({})` exports used as registry placeholders that consumers extend.
 - Empty `useEffect(() => {}, [deps])` is a real anti-pattern but classify under `frameworks/react.md` to keep judgment consistent.
-- `void 0` and `undefined` return literals in narrow generic helpers — these are language plumbing.
+- `void 0` and `undefined` return literals in narrow generic helpers. These are language plumbing.
 
 ## Graceful degradation
 

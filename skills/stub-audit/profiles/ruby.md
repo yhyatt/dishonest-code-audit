@@ -17,7 +17,7 @@ rg -n \
   --glob '*.rb' --glob '!**/spec/**' --glob '!**/test/**' --glob '!**/vendor/**' \
   || true
 
-# Empty method bodies — def name(...) end with nothing in between
+# Empty method bodies: def name(...) end with nothing in between
 rg -n --multiline --multiline-dotall \
   -e 'def\s+[a-zA-Z_][a-zA-Z0-9_]*[?!=]?(\s*\([^)]*\))?\s*\n\s*end\b' \
   --glob '*.rb' --glob '!**/spec/**' --glob '!**/test/**' --glob '!**/vendor/**' \
@@ -51,13 +51,13 @@ rg -n -i \
 Notes:
 
 - `bundle exec rubocop` is preferred when the project pins rubocop in its Gemfile; otherwise the bare `rubocop` falls back to a globally-installed gem.
-- Empty Ruby method bodies (`def foo; end` or `def foo\nend`) are unambiguous — Ruby has no abstract-method concept that uses an empty body. Compare with Python where `pass` is shared with `@abstractmethod`.
+- Empty Ruby method bodies (`def foo; end` or `def foo\nend`) are unambiguous. Ruby has no abstract-method concept that uses an empty body. Compare with Python where `pass` is shared with `@abstractmethod`.
 - ERB templates are surfaced explicitly because Rails projects often ship placeholder copy in `.erb` partials that escape every Ruby-source-only scan.
 
 ## Always-skip patterns (Ruby specific)
 
-- Empty controller actions in a Rails generator scaffold that legitimately render a corresponding view template — check whether `app/views/<controller>/<action>.html.erb` exists. If the template renders real content, the empty action is the Rails convention.
-- `raise NotImplementedError` inside a base class that is explicitly documented as "subclasses must override" — judge the call site, not the declaration.
+- Empty controller actions in a Rails generator scaffold that legitimately render a corresponding view template. Check whether `app/views/<controller>/<action>.html.erb` exists. If the template renders real content, the empty action is the Rails convention.
+- `raise NotImplementedError` inside a base class that is explicitly documented as "subclasses must override". Judge the call site, not the declaration.
 - Stub gems in `spec/support/` or `test/support/`.
 - `puts "TODO"` lines inside `lib/tasks/*.rake` files used for one-off scripts.
 - `Class.new` blocks defining anonymous test doubles.

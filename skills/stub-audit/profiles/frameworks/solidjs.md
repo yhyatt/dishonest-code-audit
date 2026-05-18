@@ -34,9 +34,9 @@ rg -n \
 
 ## Always-skip patterns (SolidJS specific)
 
-- `createEffect(() => track())` patterns where the effect's purpose is to subscribe a signal for reactivity — the body may look minimal but is doing real work via the signal call inside.
-- `createMemo(() => value())` thin wrappers around a signal — legitimate idiom for stabilizing a computed reference.
-- `<Show when={...} fallback={...}>` placeholder fallback content — judge by the fallback markup, not by the presence of a "placeholder" keyword.
+- `createEffect(() => track())` patterns where the effect's purpose is to subscribe a signal for reactivity. The body may look minimal but is doing real work via the signal call inside.
+- `createMemo(() => value())` thin wrappers around a signal. Legitimate idiom for stabilizing a computed reference.
+- `<Show when={...} fallback={...}>` placeholder fallback content. Judge by the fallback markup, not by the presence of a "placeholder" keyword.
 
 ## Worked examples (HIGH severity patterns)
 

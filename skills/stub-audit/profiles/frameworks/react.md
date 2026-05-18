@@ -17,7 +17,7 @@ rg -n \
   --glob '*.tsx' --glob '*.jsx' --glob '!**/*.test.*' --glob '!**/node_modules/**' \
   || true
 
-# Multiline form — handler body contains only a comment (the "TODO: wire later" stub)
+# Multiline form: handler body contains only a comment (the "TODO: wire later" stub)
 rg -n --multiline --multiline-dotall \
   -e 'onClick=\{\(\) => \{\s*//[^}]{0,200}\}\}' \
   -e 'onSubmit=\{\(\) => \{\s*//[^}]{0,200}\}\}' \
@@ -32,7 +32,7 @@ rg -n \
   || true
 
 # Component definitions that accept a prop but never reference it (single-component file heuristic)
-# This is intentionally narrow — looks for "function Foo({ value }: ...)" or "({ value })" without "value" appearing later in the function body.
+# This is intentionally narrow. Looks for "function Foo({ value }: ...)" or "({ value })" without "value" appearing later in the function body.
 # Manual review still required; mechanical sweep just flags candidates.
 rg -n --multiline --multiline-dotall \
   -e 'function [A-Z][A-Za-z0-9_]*\(\s*\{\s*value\s*\}[^)]*\)' \
@@ -42,11 +42,11 @@ rg -n --multiline --multiline-dotall \
 
 ## Always-skip patterns (React specific)
 
-- `onChange={() => {}}` on a controlled component whose `value` is set elsewhere via state — the handler exists to satisfy React's controlled-component contract, not to do work. Verify by looking for a sibling `value={state.x}` and a separate update path.
-- Storybook stories (`*.stories.tsx`) with no-op handlers — these are display-only fixtures.
-- `<form onSubmit={(e) => e.preventDefault()}>` patterns where the work happens via a separate button handler — the empty-looking submit is intentional.
-- React `useCallback(() => {}, [deps])` used as a stable identity placeholder passed to a child that conditionally calls it — judge by usage, not by the empty body alone.
-- Placeholder fallback UIs rendered only when an error boundary catches (`<ErrorFallback>...</ErrorFallback>`) — these are recovery affordances, not stubs.
+- `onChange={() => {}}` on a controlled component whose `value` is set elsewhere via state. The handler exists to satisfy React's controlled-component contract, not to do work. Verify by looking for a sibling `value={state.x}` and a separate update path.
+- Storybook stories (`*.stories.tsx`) with no-op handlers. These are display-only fixtures.
+- `<form onSubmit={(e) => e.preventDefault()}>` patterns where the work happens via a separate button handler. The empty-looking submit is intentional.
+- React `useCallback(() => {}, [deps])` used as a stable identity placeholder passed to a child that conditionally calls it. Judge by usage, not by the empty body alone.
+- Placeholder fallback UIs rendered only when an error boundary catches (`<ErrorFallback>...</ErrorFallback>`). These are recovery affordances, not stubs.
 
 ## Worked examples (HIGH severity patterns)
 

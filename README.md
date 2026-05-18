@@ -2,8 +2,8 @@
 
 Two parallel Claude Code skills that find code which lies to the user.
 
-- **`dishonest-code-audit`** — orchestrator skill. Spawns both audits below in parallel against a scope (whole codebase / branch diff / specific directory) and aggregates their findings into one combined report.
-- **`stub-audit`** — standalone mock/stub/placeholder auditor. Wraps language-specific tools (knip + leasot for JS/TS, vulture for Python, `go vet` for Go, `cargo clippy` for Rust, rubocop for Ruby) plus a tuned grep sweep to build a candidate list, then uses LLM judgment to classify each finding by UX impact (HIGH / MEDIUM / LOW / FALSE-POSITIVE / INTENTIONAL).
+- **`dishonest-code-audit`**: orchestrator skill. Spawns both audits below in parallel against a scope (whole codebase / branch diff / specific directory) and aggregates their findings into one combined report.
+- **`stub-audit`**: standalone mock/stub/placeholder auditor. Wraps language-specific tools (knip + leasot for JS/TS, vulture for Python, `go vet` for Go, `cargo clippy` for Rust, rubocop for Ruby) plus a tuned grep sweep to build a candidate list, then uses LLM judgment to classify each finding by UX impact (HIGH / MEDIUM / LOW / FALSE-POSITIVE / INTENTIONAL).
 
 ## Why this exists
 
@@ -48,7 +48,7 @@ claude plugin install pr-review-toolkit@claude-plugins-official
 
 `stub-audit` works standalone without `pr-review-toolkit`.
 
-Optional toolchains lift coverage for each stack — see the table above. None are required; profiles degrade to grep-only and report the gap in the audit's Coverage notes section.
+Optional toolchains lift coverage for each stack. See the table above. None are required; profiles degrade to grep-only and report the gap in the audit's Coverage notes section.
 
 ## Install
 
@@ -95,16 +95,16 @@ Each audit writes a markdown report:
 
 Default `<output-dir>` is `.dishonest-code-audit-<YYYY-MM-DD>/` at the repo root. Project-specific conventions (e.g., `.slice-XX-prep/`) are honored only when the caller passes an explicit directory.
 
-Every HIGH and MEDIUM finding is emitted as a structured block the orchestrator can parse and deduplicate deterministically — see the schema in `skills/stub-audit/SKILL.md` ("Structured finding schema").
+Every HIGH and MEDIUM finding is emitted as a structured block the orchestrator can parse and deduplicate deterministically. See the schema in `skills/stub-audit/SKILL.md` ("Structured finding schema").
 
 ## Classification
 
 Both specialists use a shared severity model:
 
-- **HIGH** — user sees a broken affordance, or believes the action succeeded when it didn't. Block before ship.
-- **MEDIUM** — real concern documented in code (TODO, stale workaround) but doesn't currently lie to the user.
-- **LOW** — cosmetic markers, defensive defaults, intentional safe-fails with explanatory comments.
-- **FALSE-POSITIVE / INTENTIONAL** — pattern matches but is correct behavior.
+- **HIGH**: user sees a broken affordance, or believes the action succeeded when it didn't. Block before ship.
+- **MEDIUM**: real concern documented in code (TODO, stale workaround) but doesn't currently lie to the user.
+- **LOW**: cosmetic markers, defensive defaults, intentional safe-fails with explanatory comments.
+- **FALSE-POSITIVE / INTENTIONAL**: pattern matches but is correct behavior.
 
 If the two specialists disagree on severity for the same site, the combined report uses the higher severity and records both opinions.
 

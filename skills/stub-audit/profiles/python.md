@@ -10,7 +10,7 @@ python3 -m vulture . --min-confidence 70 > /tmp/stub-audit-vulture.txt 2>/dev/nu
   || pipx run vulture . --min-confidence 70 > /tmp/stub-audit-vulture.txt 2>/dev/null \
   || true
 
-# TODO/FIXME/XXX/HACK index — leasot supports Python
+# TODO/FIXME/XXX/HACK index. leasot supports Python.
 npx --yes leasot --reporter json \
   '**/*.py' \
   > /tmp/stub-audit-leasot-python.json 2>/dev/null || true
@@ -59,15 +59,15 @@ Notes:
 
 - `vulture` reports both dead code and unused imports. Filter against `# noqa` comments and `__all__` exports before reporting.
 - `leasot` understands Python comments (`# TODO`, `# FIXME`) when given `.py` globs.
-- The bare-`pass` pattern is noisy on `Protocol` / `ABC` / `@abstractmethod` — always check the surrounding decorator context before classifying as HIGH. A `@abstractmethod` with `pass` is legitimate.
+- The bare-`pass` pattern is noisy on `Protocol` / `ABC` / `@abstractmethod`. Always check the surrounding decorator context before classifying as HIGH. A `@abstractmethod` with `pass` is legitimate.
 
 ## Always-skip patterns (Python specific)
 
-- `@abstractmethod` / `@abc.abstractmethod` definitions with `pass` or `...` — these are interface declarations, not stubs.
+- `@abstractmethod` / `@abc.abstractmethod` definitions with `pass` or `...`. These are interface declarations, not stubs.
 - `Protocol` subclasses with `...` bodies (PEP 544 structural interfaces).
-- `@overload`-decorated stubs (PEP 484) — the real implementation is later in the file.
+- `@overload`-decorated stubs (PEP 484). The real implementation is later in the file.
 - `pass` inside an `except:` block when the exception is genuinely ignorable (look for explanatory comment; if absent, flag as silent-failure candidate, not stub-audit).
-- Type stubs in `.pyi` files — all bodies are `...` by convention.
+- Type stubs in `.pyi` files: all bodies are `...` by convention.
 - `NotImplementedError` raised inside an `@abstractmethod` body.
 - `if TYPE_CHECKING:` blocks containing only imports.
 

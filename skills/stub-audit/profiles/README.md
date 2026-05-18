@@ -18,7 +18,7 @@ profiles/
     solidjs.md       Solid JSX variant (loaded on top of typescript)
 ```
 
-A stack profile owns: dead-code tool, TODO scanner, language-level grep patterns, always-skip patterns specific to that language. A framework profile owns UI-affordance patterns layered on top of a stack profile — empty handlers, placeholder components, no-op event bindings.
+A stack profile owns: dead-code tool, TODO scanner, language-level grep patterns, always-skip patterns specific to that language. A framework profile owns UI-affordance patterns layered on top of a stack profile: empty handlers, placeholder components, no-op event bindings.
 
 ## How profiles are loaded
 
@@ -47,10 +47,10 @@ If no profile matches, fall back to the generic patterns in `stub-audit/SKILL.md
 
 Every profile file follows the same shape so the SKILL can read it predictably:
 
-1. **Intro** — one or two sentences on what this profile catches.
-2. **Detection bash** — the commands that produce the candidate list. Every command must tolerate a missing toolchain (`|| true` after the toolchain call, fall back to grep). Toolchain absence is not fatal.
-3. **Always-skip patterns** — language-specific noise the mechanical sweep will produce that should never become a finding (idiomatic empty interfaces, language-level placeholder values, etc.).
-4. **Graceful degradation** — what coverage looks like when the toolchain is missing, and what the user should install to lift it.
+1. **Intro**: one or two sentences on what this profile catches.
+2. **Detection bash**: the commands that produce the candidate list. Every command must tolerate a missing toolchain (`|| true` after the toolchain call, fall back to grep). Toolchain absence is not fatal.
+3. **Always-skip patterns**: language-specific noise the mechanical sweep will produce that should never become a finding (idiomatic empty interfaces, language-level placeholder values, etc.).
+4. **Graceful degradation**: what coverage looks like when the toolchain is missing, and what the user should install to lift it.
 
 ## Adding a new profile
 
@@ -59,5 +59,5 @@ See `CONTRIBUTING.md` at the repo root. The short version:
 1. Copy the closest existing profile as a starting point.
 2. Add a tiny fixture under `tests/fixtures/<your-stack>/` with at least one planted finding per pattern.
 3. Add an `expected.json` manifest listing the file paths and pattern labels the mechanical sweep must surface.
-4. Run `bash tests/run-fixtures.sh` — it must exit 0.
+4. Run `bash tests/run-fixtures.sh`. It must exit 0.
 5. Document the toolchain dependency and graceful-fallback behavior in the profile file.

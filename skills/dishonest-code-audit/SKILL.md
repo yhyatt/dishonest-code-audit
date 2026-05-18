@@ -1,14 +1,14 @@
 ---
 name: dishonest-code-audit
-description: Find code that lies to the user. Combines two audits in parallel — silent failures (errors swallowed; toasts that claim success when the server returned 5xx; clipboard "copied" when writeText rejected) AND mock/stub/placeholder code in production paths (buttons with empty onClick, hand-drawn SVG that ignores its input prop, handlers that don't notify the server, stale TODOs on shipped work). Use as a pre-ship audit, before merging a feature branch, at the end of a slice, or whenever the user asks for a "lying code" / "dishonest code" / "UX-correctness" / "production-readiness" sweep. Output: one combined report aggregating both specialists' findings, classified HIGH / MEDIUM / LOW / FALSE-POSITIVE.
+description: Find code that lies to the user. Combines two audits in parallel: silent failures (errors swallowed; toasts that claim success when the server returned 5xx; clipboard "copied" when writeText rejected) AND mock/stub/placeholder code in production paths (buttons with empty onClick, hand-drawn SVG that ignores its input prop, handlers that don't notify the server, stale TODOs on shipped work). Use as a pre-ship audit, before merging a feature branch, at the end of a slice, or whenever the user asks for a "lying code" / "dishonest code" / "UX-correctness" / "production-readiness" sweep. Output: one combined report aggregating both specialists' findings, classified HIGH / MEDIUM / LOW / FALSE-POSITIVE.
 ---
 
 # Dishonest Code Audit
 
 You are orchestrating two parallel specialist audits to find code that misleads users. Both audits target the same outcome (the user sees something that isn't true) but reason from different directions:
 
-- **Error paths** — `silent-failure-hunter` (sub-agent from `pr-review-toolkit` plugin). Reasons about catch blocks, fallback logic, log-and-continue patterns, unhandled rejections.
-- **Happy paths** — `stub-audit` (skill, shipped alongside this skill). Reasons about empty handlers, placeholder SVGs, stub returns, stale TODOs, hardcoded canned data in route handlers.
+- **Error paths**: `silent-failure-hunter` (sub-agent from `pr-review-toolkit` plugin). Reasons about catch blocks, fallback logic, log-and-continue patterns, unhandled rejections.
+- **Happy paths**: `stub-audit` (skill, shipped alongside this skill). Reasons about empty handlers, placeholder SVGs, stub returns, stale TODOs, hardcoded canned data in route handlers.
 
 Together they cover the surface where production code lies to the user. Keep them as two specialists because the review frames are intentionally different: silent-failure-hunter audits failed operations (catch blocks, fallbacks, log-and-continue); stub-audit audits fake successful affordances (empty handlers, placeholder data). Merging the prompts in early drafts produced shallower judgments on both axes.
 
@@ -18,7 +18,7 @@ Together they cover the surface where production code lies to the user. Keep the
 - `pr-review-toolkit` plugin installed, providing `silent-failure-hunter`. Install: `claude plugin install pr-review-toolkit@claude-plugins-official`.
 - `stub-audit` skill discoverable (shipped alongside this plugin).
 - A git repository root, or an explicit path/scope from the user.
-- For the stack profile in use: the corresponding language toolchain on PATH (node/npx for typescript, python3 for python, etc.). Profiles degrade gracefully when their toolchain is absent — they fall back to grep-only and record the gap in Coverage notes.
+- For the stack profile in use: the corresponding language toolchain on PATH (node/npx for typescript, python3 for python, etc.). Profiles degrade gracefully when their toolchain is absent. They fall back to grep-only and record the gap in Coverage notes.
 
 ## When to use
 
@@ -39,9 +39,9 @@ Use proactively (without being asked) at these moments:
 ### 1. Determine scope
 
 Ask the user OR infer from context. Three common scopes:
-- **Branch diff** — `git diff origin/main..HEAD` style. Use when there's a feature branch in flight.
-- **Whole codebase** — typically the source directories listed below. Use for pre-ship audits.
-- **Specific directory** — when the user names one.
+- **Branch diff**: `git diff origin/main..HEAD` style. Use when there's a feature branch in flight.
+- **Whole codebase**: typically the source directories listed below. Use for pre-ship audits.
+- **Specific directory**: when the user names one.
 
 If the user didn't specify, ask once. If they say "just audit it," default to:
 
@@ -49,7 +49,7 @@ If the user didn't specify, ask once. If they say "just audit it," default to:
 {app,src,pages,components,lib,server,hooks,utils,actions,api,routes}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,py,go,rs,rb}
 ```
 
-Condition the glob on the stack profiles detected by `stub-audit` (see its `Phase 1 — Stack detection`). Do not glob `.py` if no Python profile was loaded; the same applies to every other language.
+Condition the glob on the stack profiles detected by `stub-audit` (see its `Phase 1: Stack detection`). Do not glob `.py` if no Python profile was loaded; the same applies to every other language.
 
 Always exclude:
 
@@ -97,7 +97,7 @@ Task #1:
     Line: 123                                    # or "unknown"
     User-visible lie: <one sentence>
     Evidence: |
-      <minimal code excerpt — 5-15 lines>
+      <minimal code excerpt, 5-15 lines>
     Recommended fix: <concrete fix>
     Fix size: S | M | L
     Confidence: High | Medium | Low
@@ -136,7 +136,7 @@ Read both reports. Parse the structured `### Finding ID:` blocks deterministical
 **Combined report shape:**
 
 ```markdown
-# Dishonest Code Audit — <scope description>
+# Dishonest Code Audit: <scope description>
 
 Date: <iso>
 Scope: <files/branches reviewed>
@@ -147,7 +147,7 @@ Scope: <files/branches reviewed>
 - LOW: same
 - FALSE-POSITIVE / INTENTIONAL: same
 
-## HIGH — block-before-ship
+## HIGH: block-before-ship
 
 ### Finding ID: HIGH-001
 Source: safe-fail | mock-stub | both
@@ -166,14 +166,14 @@ Severity disagreement: none | "<source>: <severity>"
 ### Finding ID: HIGH-002
 ...
 
-## MEDIUM — fix-this-sprint
+## MEDIUM: fix-this-sprint
 [same shape]
 
-## LOW — defer
+## LOW: defer
 [bulleted, terse]
 
 ## False positives / intentional patterns
-[brief — point to individual audits for detail]
+[brief; point to individual audits for detail]
 
 ## Coverage notes
 - Profiles loaded: <typescript, frameworks/react, python, ...>
@@ -196,16 +196,16 @@ Brief summary (under 200 words):
 - Total HIGH / MEDIUM / LOW counts.
 - Top 3 HIGH items with `file:line`.
 - Path to combined report.
-- Any items from one audit that the other "could have caught but didn't" — useful for tuning.
+- Any items from one audit that the other "could have caught but didn't". Useful for tuning.
 
 ## Output format philosophy
 
 **Both source audits' classifications mean the same thing:**
 
-- HIGH = user sees a broken affordance, or believes the action succeeded when it didn't. Block before ship.
-- MEDIUM = real concern documented in code (TODO, stale workaround) but doesn't currently lie to the user.
-- LOW = cosmetic markers, defensive defaults, intentional safe-fails with explanatory comments.
-- FALSE-POSITIVE / INTENTIONAL = pattern matches but is correct behavior (e.g., `console.error` in a failure branch IS legitimate logging).
+- HIGH: user sees a broken affordance, or believes the action succeeded when it didn't. Block before ship.
+- MEDIUM: real concern documented in code (TODO, stale workaround) but doesn't currently lie to the user.
+- LOW: cosmetic markers, defensive defaults, intentional safe-fails with explanatory comments.
+- FALSE-POSITIVE / INTENTIONAL: pattern matches but is correct behavior (e.g., `console.error` in a failure branch IS legitimate logging).
 
 The unified vocabulary replaces the legacy `NONE-INTENTIONAL` (from safe-fail) and the bare `FALSE-POSITIVE` (from stub-audit) with the combined `FALSE-POSITIVE / INTENTIONAL` label.
 
@@ -213,14 +213,14 @@ If the two specialists disagree on severity for the same site, use the higher se
 
 ## Anti-patterns (don't do these)
 
-- Don't merge silent-failure-hunter's checklist with stub-audit's into a single prompt. Run them as separate specialists — the framing matters.
+- Don't merge silent-failure-hunter's checklist with stub-audit's into a single prompt. Run them as separate specialists; the framing matters.
 - Don't skip `silent-failure-hunter` because you "already swept for empty catches with grep." The agent's value is in judging the UX impact, not in pattern-matching.
-- Don't author or modify i18n/translation strings as part of this audit — flag them for separate review.
-- Don't run before the prerequisite check (step 3) — the user's session won't have `silent-failure-hunter` unless the plugin is installed.
+- Don't author or modify i18n/translation strings as part of this audit. Flag them for separate review.
+- Don't run before the prerequisite check (step 3). The user's session won't have `silent-failure-hunter` unless the plugin is installed.
 - Don't drop `Line: unknown` findings during aggregation. File-level lies (e.g., entire route handler returns canned data) are common HIGH severities.
 
 ## Related skills / agents
 
-- `stub-audit` — invoked by step 4 above. Can also be run standalone.
-- `silent-failure-hunter` — invoked by step 4 above. Can also be run standalone via Task.
-- `pr-review-toolkit:review-pr` slash command — different orchestrator, PR-scoped, runs 6 specialists. Use that for PR-context reviews; use this skill for full-codebase or branch-diff sweeps.
+- `stub-audit`: invoked by step 4 above. Can also be run standalone.
+- `silent-failure-hunter`: invoked by step 4 above. Can also be run standalone via Task.
+- `pr-review-toolkit:review-pr` slash command: different orchestrator, PR-scoped, runs 6 specialists. Use that for PR-context reviews; use this skill for full-codebase or branch-diff sweeps.
