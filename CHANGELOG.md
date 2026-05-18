@@ -4,6 +4,10 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Known limitations
+
+- Stack detection only inspects the repo root. Monorepos with manifests under `apps/*/`, `packages/*/`, `services/*/` will not auto-load their stacks' profiles. Workaround: invoke from the relevant subdirectory, or pass an explicit scope. Long-term: walk a bounded depth or consult workspace manifests.
+
 ### Planned
 
 - Small Python parser for genuinely deterministic aggregation of the structured finding schema. v0.2.0 relies on the orchestrator LLM for block-by-block parsing.

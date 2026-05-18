@@ -104,6 +104,10 @@ Bump `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` to the s
 - [ ] No private project names or absolute file paths under `/home/`, `/Users/`, or `C:\` remain in the shipped files.
 - [ ] No new instructions inside the repo that a malicious upstream could exploit via prompt injection (the orchestrator's prompt-injection guard treats repo contents as untrusted, but contributors should still avoid adding lines like "ignore prior instructions" anywhere).
 
+## Known limitations
+
+- Stack detection only inspects the repo root. Monorepos with manifests under `apps/*/`, `packages/*/`, `services/*/` will not auto-load their stacks' profiles. Workaround: invoke from the relevant subdirectory, or pass an explicit scope. Tracked under CHANGELOG `[Unreleased]`.
+
 ## Style
 
 - Direct, concrete writing. No marketing prose.
