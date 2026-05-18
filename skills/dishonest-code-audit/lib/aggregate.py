@@ -105,8 +105,15 @@ def normalize_severity(value: str) -> str:
     return v
 
 
-def normalize_path(p: str, repo_root: Optional[str]) -> str:
-    """Strip repo-root prefix and leading ./, collapse duplicate slashes."""
+def normalize_path(p: str, repo_root: Optional[str], case_insensitive: bool = False) -> str:
+    """Strip repo-root prefix and leading ./, collapse duplicate slashes.
+
+    When `case_insensitive=True`, also casefold the path. SKILL.md's dedup
+    spec calls for lowercasing on case-insensitive filesystems (macOS APFS
+    default, Windows NTFS default). Default off because Linux is
+    case-sensitive and `Foo/x.tsx` and `foo/x.tsx` CAN be distinct files
+    there; the caller opts in via --case-insensitive-paths.
+    """
     p = p.strip()
     if repo_root:
         rr = repo_root.rstrip("/") + "/"
@@ -115,6 +122,8 @@ def normalize_path(p: str, repo_root: Optional[str]) -> str:
     while p.startswith("./"):
         p = p[2:]
     p = re.sub(r"/+", "/", p)
+    if case_insensitive:
+        p = p.casefold()
     return p
 
 
@@ -142,7 +151,7 @@ def jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
-def parse_report(path: Path, source_label: str, repo_root: Optional[str]) -> list[Finding]:
+def parse_report(path: Path, source_label: str, repo_root: Optional[str], case_insensitive_paths: bool = False) -> list[Finding]:
     """Parse a single source report into a list of Findings.
 
     Fails loud on any malformed block (missing required field, bad severity).
@@ -241,7 +250,7 @@ def parse_report(path: Path, source_label: str, repo_root: Optional[str]) -> lis
             source_path=str(path),
             finding_id=finding_id,
             severity=severity,
-            file=normalize_path(fields["File"], repo_root),
+            file=normalize_path(fields["File"], repo_root, case_insensitive_paths),
             line_raw=line_raw,
             line_primary=line_primary,
             user_visible_lie=fields["User-visible lie"].strip(),
@@ -318,6 +327,29 @@ def deduplicate(findings: list[Finding], jaccard_threshold: float = 0.6) -> list
     """
     safe_fail = [f for f in findings if f.source == "safe-fail"]
     mock_stub = [f for f in findings if f.source == "mock-stub"]
+
+    # Raise on duplicate (file, line_primary) within a source. Earlier behavior
+    # silently overwrote the index, making partner-pick order-dependent and the
+    # net merged set non-deterministic. Within-source dedup is the specialist's
+    # responsibility; if a real case needs two findings at the same line, the
+    # specialist should set Line: unknown on the second so fuzzy match runs.
+    def _check_within_source_unique(items: list[Finding], label: str) -> None:
+        seen: dict[tuple[str, int], str] = {}
+        for f in items:
+            if f.line_primary is None:
+                continue
+            key = (f.file, f.line_primary)
+            if key in seen:
+                raise ValueError(
+                    f"{f.source_path}:{f.block_start_line}: duplicate {label} finding key "
+                    f"({f.file}, {f.line_primary}) — already taken by {seen[key]}. "
+                    f"Set one Line: unknown so the fuzzy fallback can decide, "
+                    f"or merge within the source before emitting."
+                )
+            seen[key] = f.finding_id
+
+    _check_within_source_unique(safe_fail, "safe-fail")
+    _check_within_source_unique(mock_stub, "mock-stub")
 
     # Index mock-stub by primary key for O(1) lookup.
     ms_by_key: dict[tuple[str, int], Finding] = {}
@@ -623,6 +655,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--date", default=None, help="ISO date for the report header; defaults to today")
     ap.add_argument("--known-clean-surfaces", default=None, type=Path, help="Path to a text file listing known-clean surfaces (one per line: `path:symbol — reason`)")
     ap.add_argument("--jaccard-threshold", default=0.6, type=float, help="Fuzzy-match threshold for User-visible lie when Line is unknown")
+    ap.add_argument("--case-insensitive-paths", action="store_true", help="Casefold File: values during dedup. Use on macOS APFS / Windows NTFS where path casing is irrelevant. Default off because Linux is case-sensitive.")
     args = ap.parse_args(argv)
 
     if not args.safe_fail.exists():
@@ -631,16 +664,22 @@ def main(argv: list[str]) -> int:
     if not args.mock_stub.exists():
         print(f"ERROR: --mock-stub path does not exist: {args.mock_stub}", file=sys.stderr)
         return 2
+    if args.known_clean_surfaces is not None and not args.known_clean_surfaces.exists():
+        # Fail loud: a caller that passes a missing path almost certainly typoed
+        # it and expects reclassification to happen. Silently proceeding gives
+        # the wrong answer with no signal.
+        print(f"ERROR: --known-clean-surfaces path does not exist: {args.known_clean_surfaces}", file=sys.stderr)
+        return 2
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    safe = parse_report(args.safe_fail, "safe-fail", args.repo_root)
-    mock = parse_report(args.mock_stub, "mock-stub", args.repo_root)
+    safe = parse_report(args.safe_fail, "safe-fail", args.repo_root, args.case_insensitive_paths)
+    mock = parse_report(args.mock_stub, "mock-stub", args.repo_root, args.case_insensitive_paths)
 
     merged = deduplicate(safe + mock, jaccard_threshold=args.jaccard_threshold)
 
     known_clean = []
-    if args.known_clean_surfaces and args.known_clean_surfaces.exists():
+    if args.known_clean_surfaces is not None:
         known_clean = parse_known_clean(
             args.known_clean_surfaces.read_text(encoding="utf-8"),
             source_path=str(args.known_clean_surfaces),

@@ -1,0 +1,6 @@
+{
+  "must_fail": {
+    "stderr_contains_path": "definitely-does-not-exist-aggregator-case14.txt",
+    "stderr_contains_pattern": "--known-clean-surfaces path does not exist"
+  }
+}

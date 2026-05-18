@@ -3,15 +3,27 @@
 #
 # For each fixture under tests/fixtures/aggregator/<case>/:
 #   - safe-fail.md + mock-stub.md (+ optional known-clean.txt) are the inputs
-#   - expected.json is a *partial* JSON spec; the harness asserts every key in
-#     it (recursively) is present-and-equal in the produced AGGREGATE.json
+#   - expected.json is a *partial* JSON spec; the harness asserts a fixed set
+#     of top-level structures (it is NOT a fully recursive deep-equal):
+#       * counts: each present key is checked against actual.counts[key]
+#       * findings_count_min: lower bound on len(actual.findings)
+#       * findings: each expected entry must match SOME actual finding on all
+#         its specified keys; `sources` and `source_finding_ids` are compared
+#         as sorted lists
+#       * findings_by_file: keyed by File; each spec is matched against the
+#         actual finding with that file; `recommended_fix_contains` does a
+#         substring check on `recommended_fix`
+#       * must_fail: declares the aggregator must exit non-zero and stderr
+#         must contain `stderr_contains_path` (substring) and/or
+#         `stderr_contains_pattern` (regex)
 #
-# Special case: case-06-malformed asserts the aggregator EXITS NON-ZERO and
-# stderr names both the offending source file path and a line number.
+# Keys not in this set are ignored. Add new structures to assert_subset() if
+# new fixture cases need them.
 #
 # The point of this harness is mechanical regression coverage of dedup,
-# fuzzy-match, severity merge, and known-clean reclassification. The
-# judgment-layer behavior (LLM filling placeholders) is out of scope.
+# fuzzy-match, severity merge, known-clean reclassification, and fail-loud
+# error paths. The judgment-layer behavior (LLM filling placeholders) is out
+# of scope.
 
 set -euo pipefail
 
@@ -129,6 +141,14 @@ for fixture_dir in "$fixtures_root"/*/; do
   mock_stub="$fixture_dir/mock-stub.md"
   expected="$fixture_dir/expected.json"
   known_clean="$fixture_dir/known-clean.txt"
+  # Optional: fixture can override the --known-clean-surfaces argument by writing
+  # the literal path string into known-clean-arg.txt. Used by fail-loud cases
+  # that need to pass a non-existent path. The content is read verbatim.
+  known_clean_arg_file="$fixture_dir/known-clean-arg.txt"
+  # Optional: extra CLI flags appended to the aggregator invocation, one per line.
+  # Lines beginning with `#` and empty lines are ignored. Used to exercise
+  # behavior gated on flags (e.g. --case-insensitive-paths).
+  extra_args_file="$fixture_dir/extra-args.txt"
 
   if [ ! -f "$safe_fail" ] || [ ! -f "$mock_stub" ] || [ ! -f "$expected" ]; then
     echo "FAIL [$case_name]: missing safe-fail.md, mock-stub.md, or expected.json" >&2
@@ -159,8 +179,17 @@ print(mf.get("stderr_contains_pattern",""))' "$expected")
       --out-dir "$tmp_out"
       --scope test --date 2026-05-18
     )
-    if [ -f "$known_clean" ]; then
+    if [ -f "$known_clean_arg_file" ]; then
+      args+=( --known-clean-surfaces "$(cat "$known_clean_arg_file")" )
+    elif [ -f "$known_clean" ]; then
       args+=( --known-clean-surfaces "$known_clean" )
+    fi
+    if [ -f "$extra_args_file" ]; then
+      while IFS= read -r extra_arg; do
+        [ -z "$extra_arg" ] && continue
+        case "$extra_arg" in \#*) continue ;; esac
+        args+=( "$extra_arg" )
+      done < "$extra_args_file"
     fi
 
     set +e
@@ -184,7 +213,7 @@ print(mf.get("stderr_contains_pattern",""))' "$expected")
       trap - EXIT
       continue
     fi
-    if [ -n "$must_fail_pattern" ] && ! printf '%s' "$stderr_capture" | grep -qE "$must_fail_pattern"; then
+    if [ -n "$must_fail_pattern" ] && ! printf '%s' "$stderr_capture" | grep -qE -- "$must_fail_pattern"; then
       echo "FAIL [$case_name]: stderr missing required pattern '$must_fail_pattern'" >&2
       echo "       stderr was:" >&2
       printf '%s\n' "$stderr_capture" | sed 's/^/         /' >&2
@@ -209,6 +238,13 @@ print(mf.get("stderr_contains_pattern",""))' "$expected")
   )
   if [ -f "$known_clean" ]; then
     args+=( --known-clean-surfaces "$known_clean" )
+  fi
+  if [ -f "$extra_args_file" ]; then
+    while IFS= read -r extra_arg; do
+      [ -z "$extra_arg" ] && continue
+      case "$extra_arg" in \#*) continue ;; esac
+      args+=( "$extra_arg" )
+    done < "$extra_args_file"
   fi
 
   if ! python3 "$aggregator" "${args[@]}" >/dev/null 2>"$tmp_out/stderr"; then

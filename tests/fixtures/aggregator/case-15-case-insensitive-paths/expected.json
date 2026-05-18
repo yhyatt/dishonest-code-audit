@@ -1,0 +1,15 @@
+{
+  "counts": {
+    "safe_high": 1,
+    "mock_high": 1,
+    "high_overlap": 1,
+    "high_total": 1
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "sources": ["mock-stub", "safe-fail"],
+      "source_finding_ids": ["MS-001", "SF-001"]
+    }
+  ]
+}
