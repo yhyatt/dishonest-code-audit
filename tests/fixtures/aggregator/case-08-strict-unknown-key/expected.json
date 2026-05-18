@@ -1,0 +1,15 @@
+{
+  "counts": {
+    "safe_high": 1,
+    "mock_high": 0,
+    "high_overlap": 0,
+    "high_total": 1
+  },
+  "findings": [
+    {
+      "file": "src/save.ts",
+      "severity": "HIGH",
+      "user_visible_lie": "toast claims saved but server returned 500 Status: bubbled through fetch.catch with empty handler"
+    }
+  ]
+}

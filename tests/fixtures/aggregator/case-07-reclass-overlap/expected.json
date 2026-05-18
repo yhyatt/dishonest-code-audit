@@ -1,0 +1,19 @@
+{
+  "counts": {
+    "safe_medium": 1,
+    "mock_medium": 1,
+    "medium_overlap": 1,
+    "medium_reclassified": 1,
+    "medium_total": 0,
+    "intentional_total": 1
+  },
+  "findings": [
+    {
+      "file": "src/demo/Sandbox.tsx",
+      "severity": "INTENTIONAL",
+      "pre_reclass_severity": "MEDIUM",
+      "sources": ["mock-stub", "safe-fail"],
+      "source_finding_ids": ["MS-001", "SF-001"]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+- src/demo/Sandbox.tsx — demo sandbox, no-op buttons are intentional

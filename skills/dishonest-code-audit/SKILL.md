@@ -158,9 +158,19 @@ Both tasks run concurrently. Wait for both completions.
 
 Run the deterministic aggregator shipped with this skill, then fill in the narrative sections it leaves blank.
 
+Locate the aggregator script. The skill is installed under the Claude Code plugins directory and exposes `lib/aggregate.py` next to this `SKILL.md`. The runtime does not surface `$0` as the SKILL.md path, so resolve the script's location at invocation time. Pick whichever finder works in the current environment:
+
 ```bash
-SKILL_DIR="$(dirname "$(realpath "$0")")"  # or the equivalent the loader exposes
-python3 "$SKILL_DIR/lib/aggregate.py" \
+# Preferred: ask the loader for the skill directory if it provides one.
+AGGREGATOR="${CLAUDE_SKILL_DIR:-}/lib/aggregate.py"
+
+# Fallback: find the installed plugin under ~/.claude/plugins/.
+[ -f "$AGGREGATOR" ] || AGGREGATOR="$(find "${HOME}/.claude/plugins" -path '*dishonest-code-audit/skills/dishonest-code-audit/lib/aggregate.py' -print -quit 2>/dev/null)"
+
+# Final fallback: PYTHONPATH-less discovery via Python.
+[ -f "$AGGREGATOR" ] || AGGREGATOR="$(python3 -c 'import os,sys; [print(os.path.join(r, "lib/aggregate.py")) for r,_,fs in os.walk(os.path.expanduser("~/.claude/plugins")) if "aggregate.py" in fs and r.endswith("dishonest-code-audit")] ' | head -n1)"
+
+python3 "$AGGREGATOR" \
   --safe-fail   "<output-dir>/SAFE-FAIL-AUDIT.md" \
   --mock-stub   "<output-dir>/MOCK-STUB-AUDIT.md" \
   --out-dir     "<output-dir>" \

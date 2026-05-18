@@ -49,6 +49,20 @@ REQUIRED_FIELDS = (
     "Confidence",
 )
 
+# Permitted optional fields. The combined-report schema additionally allows
+# Source, Source-finding IDs, Severity disagreement, Demoted from MEDIUM.
+# Any field name outside this closed set raises during parsing — silent
+# capture into extras would let a wrapped User-visible-lie continuation
+# starting with "Capital: word" steal the rest of the field. (B2.)
+ALLOWED_OPTIONAL_FIELDS = frozenset({
+    "Source",
+    "Source-finding IDs",
+    "Severity disagreement",
+    "Demoted from MEDIUM",
+})
+
+ALL_ALLOWED_FIELDS = frozenset(REQUIRED_FIELDS) | ALLOWED_OPTIONAL_FIELDS
+
 FIELD_RE = re.compile(r"^([A-Z][A-Za-z\- ]+?):\s*(.*)$")
 HEADER_RE = re.compile(r"^### Finding ID:\s*(\S+)\s*$")
 
@@ -150,9 +164,14 @@ def parse_report(path: Path, source_label: str, repo_root: Optional[str]) -> lis
             line = lines[i]
             if HEADER_RE.match(line):
                 break
-            # Top-level field line: "Key: value"
+            # Top-level field line: "Key: value". Only treat as a new field
+            # if Key is in the allowed set; otherwise it is almost certainly a
+            # wrapped continuation of the previous field that happens to begin
+            # with `Capital: word` (e.g. "Status: failed despite OK response").
+            # Silently capturing such lines as new fields used to truncate the
+            # previous field and degrade dedup quality. (B2.)
             fm = FIELD_RE.match(line)
-            if fm and not line.startswith(" ") and not line.startswith("\t"):
+            if fm and not line.startswith(" ") and not line.startswith("\t") and fm.group(1).strip() in ALL_ALLOWED_FIELDS:
                 key = fm.group(1).strip()
                 value = fm.group(2)
                 # Pipe-block evidence: "Evidence: |"
@@ -245,6 +264,7 @@ class MergedFinding:
     source_finding_ids: list[str]
     severity_disagreement: Optional[str]  # textual record when sides disagreed
     known_clean_match: Optional[str] = None  # caller-supplied reason if matched
+    pre_reclass_severity: Optional[str] = None  # severity before apply_known_clean flipped it to INTENTIONAL
 
     def source_label(self) -> str:
         if len(self.sources) == 1:
@@ -401,6 +421,7 @@ def apply_known_clean(merged: list[MergedFinding], clean: list[tuple[str, str, s
         for cf, sym, reason in clean:
             if mf.file == cf or mf.file.endswith("/" + cf):
                 if not sym or sym.lower() in mf.user_visible_lie.lower() or sym.lower() in mf.evidence.lower():
+                    mf.pre_reclass_severity = mf.severity
                     mf.severity = "INTENTIONAL"
                     mf.known_clean_match = reason
                     mf.recommended_fix = f"none — marked clean by caller: {reason}"
@@ -484,9 +505,21 @@ def render_markdown(
     parts.append("")
     parts.append("<!-- LLM_FILL: headline — one sentence describing what's NOT broken, mirroring the dominant patterns below. -->\n")
     parts.append("## Combined verdict\n")
-    parts.append(f"- HIGH findings: {counts['safe_high']} safe-fail + {counts['mock_high']} mock/stub - {counts['high_overlap']} dedup overlaps = **{counts['high_total']}**")
-    parts.append(f"- MEDIUM: {counts['safe_medium']} safe-fail + {counts['mock_medium']} mock/stub - {counts['medium_overlap']} dedup overlaps = **{counts['medium_total']}**")
-    parts.append(f"- LOW: {counts['safe_low']} safe-fail + {counts['mock_low']} mock/stub - {counts['low_overlap']} dedup overlaps = **{counts['low_total']}**")
+    def equation(sev_lo: str) -> str:
+        # Render: `<safe> safe-fail + <mock> mock/stub - <overlap> overlaps - <reclassified> reclassified-to-intentional = <total>`
+        # The reclassified term is omitted when zero to keep the equation terse.
+        reclass = counts[f"{sev_lo}_reclassified"]
+        body = (
+            f"{counts[f'safe_{sev_lo}']} safe-fail + {counts[f'mock_{sev_lo}']} mock/stub "
+            f"- {counts[f'{sev_lo}_overlap']} dedup overlaps"
+        )
+        if reclass:
+            body += f" - {reclass} reclassified by known_clean_surfaces"
+        return f"{body} = **{counts[f'{sev_lo}_total']}**"
+
+    parts.append(f"- HIGH findings: {equation('high')}")
+    parts.append(f"- MEDIUM: {equation('medium')}")
+    parts.append(f"- LOW: {equation('low')}")
     parts.append(f"- FALSE-POSITIVE / INTENTIONAL: {counts['intentional_total']}")
     parts.append("")
     parts.append("<!-- LLM_FILL: dominant_patterns — group HIGH findings into 1-3 dominant patterns. -->\n")
@@ -519,10 +552,27 @@ def render_markdown(
 
 
 def build_counts(safe: list[Finding], mock: list[Finding], merged: list[MergedFinding]) -> dict:
+    """Build the count dict that drives both the JSON sidecar and the rendered equation.
+
+    Overlap counts must be computed against the PRE-reclassification severity
+    so the rendered equation reconciles even when `apply_known_clean` flipped a
+    merged finding to INTENTIONAL. The reclassified terms appear as their own
+    line in the equation. (B1.)
+    """
     def count_sev(findings, sev): return sum(1 for f in findings if f.severity == sev)
     def count_merged_sev(sev): return sum(1 for m in merged if m.severity == sev)
+
+    def effective_sev(m: MergedFinding) -> str:
+        # The severity the finding had before known-clean reclassification.
+        # For un-reclassified findings this is just `m.severity`.
+        return m.pre_reclass_severity or m.severity
+
     def overlap_sev(sev):
-        return sum(1 for m in merged if len(m.sources) == 2 and m.severity == sev)
+        return sum(1 for m in merged if len(m.sources) == 2 and effective_sev(m) == sev)
+
+    def reclassified_sev(sev):
+        return sum(1 for m in merged if m.pre_reclass_severity == sev)
+
     return {
         "safe_high": count_sev(safe, "HIGH"),
         "safe_medium": count_sev(safe, "MEDIUM"),
@@ -533,6 +583,9 @@ def build_counts(safe: list[Finding], mock: list[Finding], merged: list[MergedFi
         "high_overlap": overlap_sev("HIGH"),
         "medium_overlap": overlap_sev("MEDIUM"),
         "low_overlap": overlap_sev("LOW"),
+        "high_reclassified": reclassified_sev("HIGH"),
+        "medium_reclassified": reclassified_sev("MEDIUM"),
+        "low_reclassified": reclassified_sev("LOW"),
         "high_total": count_merged_sev("HIGH"),
         "medium_total": count_merged_sev("MEDIUM"),
         "low_total": count_merged_sev("LOW"),
