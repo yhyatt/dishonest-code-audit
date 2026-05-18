@@ -1,0 +1,20 @@
+{
+  "name": "dishonest-code-audit",
+  "owner": {
+    "name": "Yonatan Hyatt",
+    "email": "hyatt.yonatan@gmail.com"
+  },
+  "metadata": {
+    "description": "Find code that lies to users — silent failures + mock/stub/placeholder code in production paths",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "dishonest-code-audit",
+      "source": "./",
+      "description": "Two parallel audits surface code that misleads users: silent failures (toasts that claim success when the server returned 5xx, clipboard 'copied' when writeText rejected) AND mock/stub/placeholder code in production paths (buttons with empty onClick, hand-drawn SVGs that ignore their input prop, handlers that don't notify the server, stale TODOs on shipped work).",
+      "category": "code-quality",
+      "tags": ["audit", "code-review", "error-handling", "production-readiness", "stub-detection"]
+    }
+  ]
+}
