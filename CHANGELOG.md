@@ -12,6 +12,12 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 - Small Python parser for genuinely deterministic aggregation of the structured finding schema. v0.2.0 relies on the orchestrator LLM for block-by-block parsing.
 
+## [0.2.2]
+
+### Added
+
+- `PRIVACY.md`: explicit "no data collected, no telemetry, no network calls" statement. Names what the underlying tools (Claude Code itself, `npx`, language toolchains) may do, and points sensitive reports at `SECURITY.md`. Added for the `claude-plugins-official` marketplace submission form's Privacy policy URL field.
+
 ## [0.2.1]
 
 ### Added
@@ -67,6 +73,7 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 - Initial release of plugin + two skills (`dishonest-code-audit` orchestrator, `stub-audit` standalone).
 
+[0.2.2]: https://github.com/yhyatt/dishonest-code-audit/releases/tag/v0.2.2
 [0.2.1]: https://github.com/yhyatt/dishonest-code-audit/releases/tag/v0.2.1
 [0.2.0]: https://github.com/yhyatt/dishonest-code-audit/releases/tag/v0.2.0
 [0.1.0]: https://github.com/yhyatt/dishonest-code-audit/releases/tag/v0.1.0
