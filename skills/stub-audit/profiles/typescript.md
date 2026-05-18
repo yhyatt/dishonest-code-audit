@@ -53,8 +53,12 @@ rg -n \
   --glob '*.ts' --glob '*.tsx' --glob '*.js' --glob '*.jsx' --glob '*.mjs' --glob '*.cjs' \
   --glob '!**/*.test.*' | head -50 || true
 
-# Hardcoded canned data in route handlers (Next.js App Router shape; generalize as needed)
-rg -n --glob 'app/api/**/route.{ts,js}' -e 'return NextResponse\.json\(\s*\{[^}]*(mock|fake|sample|placeholder|TODO)' || true
+# Hardcoded canned data in route handlers (Next.js App Router shape; generalize as needed).
+# -U with --multiline-dotall lets the body span lines, matching the real shape where
+# `NextResponse.json({` and the offending field land on separate lines. `[^}]*` stops at
+# the first `}` so the match does not run off into the rest of the file.
+rg -n -U --multiline-dotall --glob 'app/api/**/route.{ts,js}' \
+  -e 'return NextResponse\.json\(\s*\{[^}]*(mock|fake|sample|placeholder|TODO)' || true
 ```
 
 Notes:

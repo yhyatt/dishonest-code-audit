@@ -49,10 +49,17 @@ run_profile_grep() {
         'onClick=\{\(\) => \{[[:space:]]*\}\}' "$fixture_dir" 2>/dev/null || true
       ;;
 
-    # TypeScript profile — typescript.md (hardcoded canned data in route handlers).
+    # TypeScript profile, typescript.md (hardcoded canned data in route handlers).
     # Multi-line match: NextResponse.json({...mock|fake|sample|placeholder|TODO...}).
+    # Prefer invoking the exact rg command from the profile so the harness faithfully
+    # mirrors what the profile ships. Falls back to a Python regex when rg is absent.
     "mock-data")
-      python3 - "$fixture_dir" <<'PY' || true
+      if command -v rg >/dev/null 2>&1; then
+        ( cd "$fixture_dir" && rg -lU --multiline-dotall --glob 'app/api/**/route.{ts,js}' \
+          -e 'return NextResponse\.json\(\s*\{[^}]*(mock|fake|sample|placeholder|TODO)' . 2>/dev/null \
+          | sed "s|^\./|$fixture_dir|" ) || true
+      else
+        python3 - "$fixture_dir" <<'PY' || true
 import os, re, sys
 root = sys.argv[1]
 pat = re.compile(r'return\s+NextResponse\.json\(\s*\{[^}]*(mock|fake|sample|placeholder|TODO)', re.DOTALL)
@@ -70,6 +77,7 @@ for dirpath, dirnames, filenames in os.walk(root):
         if pat.search(src):
             print(p)
 PY
+      fi
       ;;
 
     # Python profile, explicit unimplemented raises.
