@@ -31,6 +31,13 @@ while IFS= read -r -d '' skill_md; do
     continue
   fi
 
+  marker_count=$(awk '/^---$/ { c++ } END { print c+0 }' "$skill_md")
+  if [ "$marker_count" -lt 2 ]; then
+    echo "FAIL [$skill_md]: missing closing --- frontmatter marker (found $marker_count of 2)" >&2
+    overall_fail=1
+    continue
+  fi
+
   frontmatter=$(awk 'NR==1 && /^---$/ { in_fm=1; next } in_fm && /^---$/ { exit } in_fm { print }' "$skill_md")
 
   if [ -z "$frontmatter" ]; then
