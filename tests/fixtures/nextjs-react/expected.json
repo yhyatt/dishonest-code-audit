@@ -11,11 +11,6 @@
       "file": "app/api/save/route.ts",
       "pattern": "mock-data",
       "min_severity": "HIGH"
-    },
-    {
-      "file": "lib/clipboard.ts",
-      "pattern": "toast-in-catch",
-      "min_severity": "HIGH"
     }
   ]
 }

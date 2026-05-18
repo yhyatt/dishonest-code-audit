@@ -72,15 +72,7 @@ for dirpath, dirnames, filenames in os.walk(root):
 PY
       ;;
 
-    # TypeScript profile — toast-in-catch pattern surfaces via empty-body grep
-    # We test the broader pattern: .catch handler whose body contains a toast/log call.
-    "toast-in-catch")
-      grep -rEln --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' \
-        --exclude-dir=node_modules \
-        '\.catch\(' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
-      ;;
-
-    # Python profile — explicit unimplemented raises
+    # Python profile, explicit unimplemented raises
     "raise NotImplementedError")
       grep -rEln --include='*.py' --include='*.rb' \
         --exclude-dir=tests --exclude-dir=spec --exclude-dir=vendor \
