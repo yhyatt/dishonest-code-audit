@@ -1,0 +1,11 @@
+{
+  "fixture": "go-http",
+  "stack": ["go"],
+  "expected_findings": [
+    {
+      "file": "main.go",
+      "pattern": "panic(\"not implemented\")",
+      "min_severity": "HIGH"
+    }
+  ]
+}

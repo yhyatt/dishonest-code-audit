@@ -1,0 +1,21 @@
+{
+  "fixture": "python-fastapi",
+  "stack": ["python"],
+  "expected_findings": [
+    {
+      "file": "app/main.py",
+      "pattern": "raise NotImplementedError",
+      "min_severity": "HIGH"
+    },
+    {
+      "file": "app/main.py",
+      "pattern": "placeholder-return",
+      "min_severity": "HIGH"
+    },
+    {
+      "file": "app/services/billing.py",
+      "pattern": "def charge",
+      "min_severity": "HIGH"
+    }
+  ]
+}
