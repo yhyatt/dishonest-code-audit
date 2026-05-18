@@ -1,6 +1,6 @@
 {
   "name": "dishonest-code-audit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Find code that lies to users across JS/TS, Python, Go, Rust, and Ruby. Ships two skills: dishonest-code-audit (meta-orchestrator that runs both audits in parallel and aggregates) and stub-audit (standalone mock/stub/placeholder auditor with pluggable stack and framework profiles). Requires pr-review-toolkit installed separately for the silent-failure half.",
   "author": {
     "name": "Yonatan Hyatt",

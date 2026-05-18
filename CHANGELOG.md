@@ -12,6 +12,22 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 - Small Python parser for genuinely deterministic aggregation of the structured finding schema. v0.2.0 relies on the orchestrator LLM for block-by-block parsing.
 
+## [0.2.1]
+
+### Added
+
+- README badges (CI status, MIT license) under the H1.
+- README `## Examples` section: five concrete use cases (pre-ship sweep, inherited-code stub audit, FastAPI pre-merge gate, stale-TODO sweep, scoped audit). Doubles as the source for the marketplace submission's "how users use the plugin" question.
+- OSS hygiene: `SECURITY.md` (vulnerability reporting + threat model), `CODE_OF_CONDUCT.md` (adopts Contributor Covenant 2.1 by reference), `.github/ISSUE_TEMPLATE/bug.md`, `.github/ISSUE_TEMPLATE/new-profile.md`, `.github/PULL_REQUEST_TEMPLATE.md`.
+
+### Changed
+
+- README skill list: `silent-failure-hunter` is now named explicitly alongside the two skills that ship here, with the `pr-review-toolkit` dependency made obvious at first read. Previously the "Spawns both audits below" sentence described two skills but the list only named one.
+
+### Fixed
+
+- Marketplace `metadata.version` and plugin `version` bumped to `0.2.1`.
+
 ## [0.2.0]
 
 ### Added
@@ -51,5 +67,6 @@ All notable changes to this plugin are documented here. The format follows [Keep
 
 - Initial release of plugin + two skills (`dishonest-code-audit` orchestrator, `stub-audit` standalone).
 
+[0.2.1]: https://github.com/yhyatt/dishonest-code-audit/releases/tag/v0.2.1
 [0.2.0]: https://github.com/yhyatt/dishonest-code-audit/releases/tag/v0.2.0
 [0.1.0]: https://github.com/yhyatt/dishonest-code-audit/releases/tag/v0.1.0

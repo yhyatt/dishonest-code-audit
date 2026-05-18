@@ -89,6 +89,44 @@ For the standalone mock/stub auditor only:
 
 - *"Run a stub audit"* / *"Find stale TODOs"* / *"What's still a placeholder?"*
 
+## Examples
+
+### 1. Pre-ship sweep on a feature branch (Next.js + TypeScript)
+
+Before merging or deploying:
+
+> "Run a dishonest code audit on this branch before I deploy."
+
+The orchestrator auto-detects the TypeScript and React profiles, scopes the diff to `app/`, `components/`, `lib/`, and writes a combined `DISHONEST-CODE-AUDIT.md` with HIGH/MEDIUM/LOW findings. Typical HIGH catches on a real feature branch: a labeled button with empty `onClick`, a route handler returning canned mock data, a toast that fires inside a `.catch` after the server already returned 5xx.
+
+### 2. Stub audit on inherited or older code
+
+Drop into a repo you did not write:
+
+> "What is still a stub or placeholder in this codebase?"
+
+Triggers `stub-audit` standalone (no `pr-review-toolkit` required). Returns a curated list of empty handlers, mock-data route returns, placeholder SVGs that ignore their input prop, and stale TODOs cross-referenced against the project's backlog or plan files.
+
+### 3. Pre-merge gate on a Python FastAPI service
+
+> "Production-readiness check on this branch."
+
+The Python profile catches `raise NotImplementedError` in route handlers, bare `def x(): pass` with no real implementation, and FastAPI endpoints returning placeholder dicts. The orchestrator runs `silent-failure-hunter` in parallel to catch swallowed exceptions in the same diff.
+
+### 4. Stale-TODO sweep at the end of a sprint
+
+> "Find stale TODOs that were supposed to land this sprint."
+
+`stub-audit` cross-references every `TODO`/`FIXME`/`HACK` marker against the project's plan and backlog files. Tracked TODOs are LOW; untracked TODOs on a shipped milestone are MEDIUM at minimum, even when the code path is currently dormant.
+
+### 5. Scoped audit on a specific directory or service
+
+In a large codebase or monorepo:
+
+> "Run the dishonest code audit on `src/billing/` only."
+
+Orchestrator narrows the scope to that path. Useful for keeping the combined report under one screen on big codebases, or for auditing one service in a multi-service repo.
+
 ## Output
 
 Each audit writes a markdown report:
