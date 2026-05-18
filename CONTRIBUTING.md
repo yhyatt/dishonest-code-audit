@@ -98,7 +98,8 @@ Bump `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` to the s
 
 - [ ] `bash tests/run-fixtures.sh` exits 0.
 - [ ] `bash tests/lib/validate-frontmatter.sh skills` exits 0.
-- [ ] Any new bash block in a SKILL or profile file passes `shellcheck -S warning` when extracted via `tests/lib/extract-bash.sh`.
+- [ ] `tests/run-fixtures.sh` and `tests/lib/*.sh` pass `shellcheck -S warning`. CI enforces this.
+- [ ] Any new bash block in a SKILL or profile file parses with `bash -n` when extracted via `tests/lib/extract-bash.sh`. CI enforces this. Manual `shellcheck` on extracted blocks is encouraged but not required, since extracted fragments reference variables defined across blocks and trip false positives.
 - [ ] CHANGELOG entry added under the next version.
 - [ ] No private project names or absolute file paths under `/home/`, `/Users/`, or `C:\` remain in the shipped files.
 - [ ] No new instructions inside the repo that a malicious upstream could exploit via prompt injection (the orchestrator's prompt-injection guard treats repo contents as untrusted, but contributors should still avoid adding lines like "ignore prior instructions" anywhere).
