@@ -18,15 +18,16 @@ if [ ! -d "$skills_root" ]; then
   exit 2
 fi
 
-fail=0
+overall_fail=0
 
 while IFS= read -r -d '' skill_md; do
   skill_dir=$(dirname "$skill_md")
   expected_name=$(basename "$skill_dir")
+  file_fail=0
 
   if ! head -1 "$skill_md" | grep -qx '\-\-\-'; then
     echo "FAIL [$skill_md]: missing opening --- frontmatter marker" >&2
-    fail=1
+    overall_fail=1
     continue
   fi
 
@@ -34,7 +35,7 @@ while IFS= read -r -d '' skill_md; do
 
   if [ -z "$frontmatter" ]; then
     echo "FAIL [$skill_md]: frontmatter is empty" >&2
-    fail=1
+    overall_fail=1
     continue
   fi
 
@@ -43,20 +44,22 @@ while IFS= read -r -d '' skill_md; do
 
   if [ -z "$name_value" ]; then
     echo "FAIL [$skill_md]: missing 'name:' key" >&2
-    fail=1
+    file_fail=1
   elif [ "$name_value" != "$expected_name" ]; then
     echo "FAIL [$skill_md]: name '$name_value' does not match directory '$expected_name'" >&2
-    fail=1
+    file_fail=1
   fi
 
   if [ -z "$desc_value" ]; then
     echo "FAIL [$skill_md]: missing or empty 'description:' key" >&2
-    fail=1
+    file_fail=1
   fi
 
-  if [ "$fail" = 0 ]; then
+  if [ "$file_fail" = 0 ]; then
     echo "OK   [$skill_md]: name=$name_value"
+  else
+    overall_fail=1
   fi
 done < <(find "$skills_root" -mindepth 2 -maxdepth 2 -name SKILL.md -print0)
 
-exit "$fail"
+exit "$overall_fail"

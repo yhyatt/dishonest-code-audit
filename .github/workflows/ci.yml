@@ -19,28 +19,30 @@ jobs:
       - name: Validate SKILL frontmatter
         run: bash tests/lib/validate-frontmatter.sh skills
 
-      - name: Extract bash blocks from SKILL files
+      - name: Shellcheck the harness scripts
         run: |
-          mkdir -p /tmp/extracted-bash
+          shellcheck -S warning \
+            tests/run-fixtures.sh \
+            tests/lib/extract-bash.sh \
+            tests/lib/validate-frontmatter.sh
+
+      - name: Extract bash blocks from SKILL files (parse-only sanity check)
+        # The bash inside SKILL.md and profile files is documentation —
+        # the model invokes pieces of it under varying conditions. We
+        # check syntax (bash -n) but not lint, because the fragments
+        # reference variables defined across blocks.
+        run: |
+          status=0
           for f in skills/dishonest-code-audit/SKILL.md \
                    skills/stub-audit/SKILL.md \
                    skills/stub-audit/profiles/*.md \
                    skills/stub-audit/profiles/frameworks/*.md; do
-            out="/tmp/extracted-bash/$(echo "$f" | tr '/' '_').sh"
-            {
-              echo '#!/usr/bin/env bash'
-              echo '# Extracted from '"$f"
-              bash tests/lib/extract-bash.sh "$f"
-            } > "$out"
+            if ! bash tests/lib/extract-bash.sh "$f" | bash -n; then
+              echo "FAIL: bash block in $f does not parse" >&2
+              status=1
+            fi
           done
-          ls -la /tmp/extracted-bash
-
-      - name: Shellcheck extracted bash and tests
-        run: |
-          shellcheck -S warning tests/run-fixtures.sh tests/lib/extract-bash.sh tests/lib/validate-frontmatter.sh
-          for f in /tmp/extracted-bash/*.sh; do
-            shellcheck -S warning -x "$f" || exit 1
-          done
+          exit "$status"
 
       - name: Fixture mechanical-sweep harness
         run: bash tests/run-fixtures.sh

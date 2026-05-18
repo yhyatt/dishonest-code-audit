@@ -2,13 +2,16 @@
 # Mechanical-sweep regression harness.
 #
 # For each fixture under tests/fixtures/<fixture-name>/:
-#   1. Read expected.json
-#   2. For each expected_findings entry, verify the fixture file exists
-#   3. Verify the listed pattern (or its mechanical-sweep equivalent) is present in that file
+#   1. Read expected.json (file path + pattern label + min severity)
+#   2. Run the matching profile's grep against the fixture root
+#   3. Assert the expected file path appears in the grep output
 #
-# The judgment pass (model classifies HIGH/MEDIUM/LOW) is out of scope — this harness
-# only ensures the mechanical layer does not regress: the patterns the profiles look
-# for must still be reachable in each fixture.
+# The profile-equivalent greps below mirror the regexes shipped in
+# skills/stub-audit/profiles/*.md. If a profile's regex regresses, the
+# corresponding entry will fail to surface here.
+#
+# The judgment pass (model classifies HIGH/MEDIUM/LOW) is out of scope —
+# this harness only ensures the mechanical layer does not regress.
 #
 # Exit 0 on full hit. Exit 1 with a clear failure listing on miss.
 
@@ -29,19 +32,101 @@ if [ ! -d "$fixtures_root" ]; then
   exit 2
 fi
 
-# Map "pattern label" -> grep search expression.
-# These mirror the mechanical-sweep regexes in the profile files, simplified for
-# fixed-string matching where the language pattern is unambiguous.
-pattern_to_search() {
-  case "$1" in
-    "onClick={() => {}}")        echo 'onClick={() => {}}' ;;
-    "mock-data")                 echo 'mock-data' ;;
-    "toast-in-catch")            echo '.catch' ;;
-    "raise NotImplementedError") echo 'raise NotImplementedError' ;;
-    "def charge")                echo 'def charge' ;;
-    'panic("not implemented")')  echo 'panic("not implemented")' ;;
-    "todo!(")                    echo 'todo!(' ;;
-    *)                           echo "$1" ;;
+# Run the profile-equivalent grep for a given pattern label inside a fixture directory.
+# Returns the list of files that match (one per line, relative to the fixture root).
+#
+# Mirror of the rg patterns in skills/stub-audit/profiles/*.md, expressed as
+# grep -E (POSIX extended regex) so the harness has no ripgrep dependency.
+run_profile_grep() {
+  local fixture_dir="$1"
+  local pattern="$2"
+
+  case "$pattern" in
+    # React framework profile — frameworks/react.md
+    "onClick={() => {}}")
+      grep -rEl --include='*.tsx' --include='*.jsx' \
+        --exclude-dir=node_modules --exclude-dir='*.test.*' \
+        'onClick=\{\(\) => \{[[:space:]]*\}\}' "$fixture_dir" 2>/dev/null || true
+      ;;
+
+    # TypeScript profile — typescript.md (hardcoded canned data in route handlers).
+    # Multi-line match: NextResponse.json({...mock|fake|sample|placeholder|TODO...}).
+    "mock-data")
+      python3 - "$fixture_dir" <<'PY' || true
+import os, re, sys
+root = sys.argv[1]
+pat = re.compile(r'return\s+NextResponse\.json\(\s*\{[^}]*(mock|fake|sample|placeholder|TODO)', re.DOTALL)
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames if d not in {"node_modules", ".next", "dist", "build"}]
+    for fn in filenames:
+        if fn not in {"route.ts", "route.js"}:
+            continue
+        p = os.path.join(dirpath, fn)
+        try:
+            with open(p) as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        if pat.search(src):
+            print(p)
+PY
+      ;;
+
+    # TypeScript profile — toast-in-catch pattern surfaces via empty-body grep
+    # We test the broader pattern: .catch handler whose body contains a toast/log call.
+    "toast-in-catch")
+      grep -rEln --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' \
+        --exclude-dir=node_modules \
+        '\.catch\(' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
+      ;;
+
+    # Python profile — explicit unimplemented raises
+    "raise NotImplementedError")
+      grep -rEln --include='*.py' --include='*.rb' \
+        --exclude-dir=tests --exclude-dir=spec --exclude-dir=vendor \
+        'raise[[:space:]]+NotImplementedError' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
+      ;;
+
+    # Python profile — bare-pass function body
+    # def name(...): \n pass
+    "def charge")
+      # Match concrete def with bare pass or ellipsis body.
+      python3 - "$fixture_dir" <<'PY' || true
+import os, re, sys
+root = sys.argv[1]
+pat = re.compile(r'def\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*(->\s*[^:]+)?:\s*\n\s*(pass|\.\.\.)\s*\n')
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames if d not in {"tests", ".venv", "venv", "__pycache__"}]
+    for fn in filenames:
+        if not fn.endswith(".py"):
+            continue
+        p = os.path.join(dirpath, fn)
+        try:
+            with open(p) as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        if pat.search(src):
+            print(p)
+PY
+      ;;
+
+    # Go profile — panic("not implemented")
+    'panic("not implemented")')
+      grep -rEln --include='*.go' --exclude-dir=vendor \
+        'panic\("[^"]*(not implemented|TODO|todo|unimplemented|stub|placeholder)' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
+      ;;
+
+    # Rust profile — todo!() macro
+    "todo!(")
+      grep -rEln --include='*.rs' --exclude-dir=target \
+        'todo!\s*\(' "$fixture_dir" 2>/dev/null | cut -d: -f1 || true
+      ;;
+
+    *)
+      echo "ERROR: unknown pattern label: $pattern" >&2
+      return 2
+      ;;
   esac
 }
 
@@ -62,7 +147,6 @@ for fixture_dir in "$fixtures_root"/*/; do
   total_fixtures=$((total_fixtures + 1))
   fixture_failed=0
 
-  # Use python3 to extract (file, pattern) pairs deterministically.
   while IFS=$'\t' read -r exp_file exp_pattern; do
     [ -z "$exp_file" ] && continue
     total_findings=$((total_findings + 1))
@@ -75,15 +159,20 @@ for fixture_dir in "$fixtures_root"/*/; do
       continue
     fi
 
-    search=$(pattern_to_search "$exp_pattern")
-    if ! grep -F -q -- "$search" "$target"; then
-      echo "FAIL [$fixture] $exp_file: pattern '$exp_pattern' not found (searched for: '$search')" >&2
+    # Run the actual profile-equivalent grep across the fixture and check
+    # the expected file path appears in the result.
+    matched_files=$(run_profile_grep "$fixture_dir" "$exp_pattern")
+    expected_abs="$fixture_dir$exp_file"
+
+    if printf '%s\n' "$matched_files" | grep -F -q -- "$expected_abs"; then
+      echo "OK   [$fixture] $exp_file: profile grep for '$exp_pattern' surfaced the file"
+    else
+      echo "FAIL [$fixture] $exp_file: profile grep for '$exp_pattern' did NOT surface the file" >&2
+      echo "       grep output was:" >&2
+      printf '%s\n' "$matched_files" | sed 's/^/         /' >&2
       failed_findings=$((failed_findings + 1))
       fixture_failed=1
-      continue
     fi
-
-    echo "OK   [$fixture] $exp_file: '$exp_pattern' found"
   done < <(python3 - "$manifest" <<'PY'
 import json, sys
 with open(sys.argv[1]) as fh:
@@ -102,7 +191,7 @@ echo
 echo "Summary: $total_fixtures fixtures, $total_findings expected findings, $failed_findings failures"
 
 if [ "$failed_findings" = 0 ]; then
-  echo "PASS: all mechanical-sweep patterns surface in their fixtures."
+  echo "PASS: every profile's mechanical sweep surfaces every planted fixture finding."
   exit 0
 else
   echo "FAIL: $failed_findings expected findings did not surface in $failed_fixtures fixtures."
