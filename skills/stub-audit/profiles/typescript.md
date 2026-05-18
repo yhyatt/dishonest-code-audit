@@ -59,6 +59,17 @@ rg -n \
 # the first `}` so the match does not run off into the rest of the file.
 rg -n -U --multiline-dotall --glob 'app/api/**/route.{ts,js}' \
   -e 'return NextResponse\.json\(\s*\{[^}]*(mock|fake|sample|placeholder|TODO)' || true
+
+# try/finally where the try body throws — candidate for "swallowed mutation failure".
+# ripgrep cannot encode absence-of-catch (brace nesting defeats regex), so this sweep
+# generates leads and the Phase 3 judgment pass opens the enclosing function to confirm
+# there is no sibling `catch` clause. The `throw` in the body is what distinguishes
+# fire-and-forget mutations that lose errors from try/finally used purely for cleanup.
+rg -n -U --multiline-dotall \
+  -e 'try\s*\{[\s\S]{0,2000}?throw[\s\S]{0,500}?\}\s*finally\s*\{' \
+  --glob '*.ts' --glob '*.tsx' --glob '*.js' --glob '*.jsx' --glob '*.mjs' --glob '*.cjs' \
+  --glob '!**/*.test.*' --glob '!**/node_modules/**' \
+  || true
 ```
 
 Notes:

@@ -1,0 +1,15 @@
+{
+  "counts": {
+    "high_total": 1,
+    "high_overlap": 1,
+    "medium_total": 0
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "file": "src/upload.ts",
+      "sources": ["mock-stub", "safe-fail"],
+      "severity_disagreement": "safe-fail: HIGH, mock-stub: MEDIUM"
+    }
+  ]
+}

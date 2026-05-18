@@ -1,0 +1,17 @@
+{
+  "counts": {
+    "safe_medium": 1,
+    "mock_medium": 1,
+    "medium_overlap": 1,
+    "medium_total": 1,
+    "high_total": 0
+  },
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "file": "src/clipboard.ts",
+      "sources": ["mock-stub", "safe-fail"],
+      "source_finding_ids": ["MS-001", "SF-001"]
+    }
+  ]
+}

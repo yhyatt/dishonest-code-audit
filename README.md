@@ -9,6 +9,16 @@ Find code that lies to the user. The orchestrator runs two specialists in parall
 - **`silent-failure-hunter`** (error-path specialist): reasons about catch blocks, fallback logic, and log-and-continue patterns. Ships in [`pr-review-toolkit`](https://github.com/anthropics/claude-plugins-official) and must be installed separately, see [Prerequisites](#prerequisites).
 - **`stub-audit`** (happy-path specialist, ships here): mock/stub/placeholder auditor. Wraps language-specific tools (knip + leasot for JS/TS, vulture for Python, `go vet` for Go, `cargo clippy` for Rust, rubocop for Ruby) plus a tuned grep sweep to build a candidate list, then uses LLM judgment to classify each finding by UX impact (HIGH / MEDIUM / LOW / FALSE-POSITIVE / INTENTIONAL). Can be invoked standalone.
 
+### Two specialists, near-disjoint surfaces
+
+The two specialists are **complementary**, not redundant. They reason from different directions and find near-disjoint sets of issues on a real codebase. `silent-failure-hunter` audits failed operations (catch blocks, fallbacks, log-and-continue). `stub-audit` audits fake successful affordances (empty handlers, placeholder data, stale TODOs). Most findings sit on one specialist's domain, not both. Expect dedup overlap to be the exception, not the rule.
+
+The combined report includes a `Cross-audit gaps (tuning signal)` section that records cases where one specialist caught a finding the other could have caught independently. These flag opportunities to strengthen the weaker specialist's pattern coverage over time, not bugs in the current run.
+
+### What the prompt-injection guard costs you
+
+Each specialist's prompt is prepended with a ~150-word guard treating repository contents as untrusted input. That cost is paid upfront on every audit. Its value is contingent — it only matters on repositories where a hostile or compromised file tries to redirect the audit. Keep it; the cost is small and the failure mode without it is silent.
+
 ## Why this exists
 
 Born from a real pre-ship audit of a Next.js + Supabase + TypeScript codebase. The audits caught:

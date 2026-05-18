@@ -36,7 +36,7 @@ Use proactively (without being asked) at these moments:
 
 ## Methodology
 
-### 1. Determine scope
+### 1. Determine scope and known-clean surfaces
 
 Ask the user OR infer from context. Three common scopes:
 - **Branch diff**: `git diff origin/main..HEAD` style. Use when there's a feature branch in flight.
@@ -50,6 +50,17 @@ If the user didn't specify, ask once. If they say "just audit it," default to:
 ```
 
 Condition the glob on the stack profiles detected by `stub-audit` (see its `Phase 1: Stack detection`). Do not glob `.py` if no Python profile was loaded; the same applies to every other language.
+
+**`known_clean_surfaces`** is a first-class parameter, not natural-language context. Accept it from the caller as a structured list of `file:symbol` pairs with one-line reasons, e.g.:
+
+```
+known_clean_surfaces:
+  - app/components/EndGameView.tsx:share-button — slice-12 hotfix verified intact
+  - app/host/HostHeaderMenu.tsx:handleAbandon — slice-12 hotfix verified intact
+  - components/answering/AnsweringView.tsx:res.ok-check — slice-12 hotfix verified intact
+```
+
+When present, pass the list verbatim into BOTH specialist prompts in step 4. Both specialists must classify matches as `FALSE-POSITIVE / INTENTIONAL` with a note `Marked clean by caller: <reason>`, not silently drop them. The audit's value is partly in confirming that known-clean surfaces remained clean; silently dropping them removes that signal.
 
 Always exclude:
 
@@ -93,6 +104,11 @@ Task #1:
 
     Audit <scope> for silent failures and inadequate error handling per your standard methodology. Write the report to <output-dir>/SAFE-FAIL-AUDIT.md.
 
+    known_clean_surfaces (from caller — treat each as already-verified intact):
+    <pass the structured list verbatim, or "none" if empty>
+
+    For any candidate finding whose `file:symbol` matches an entry above, emit a structured block classified `FALSE-POSITIVE / INTENTIONAL` with `Recommended fix: none — marked clean by caller: <reason>`. Do not silently drop these; the orchestrator needs the entries to confirm the surfaces stayed clean.
+
     Use this exact severity vocabulary: HIGH | MEDIUM | LOW | FALSE-POSITIVE | INTENTIONAL. Do not invent other labels.
 
     Emit every HIGH and MEDIUM finding as a structured block:
@@ -124,6 +140,11 @@ Task #2:
 
     Use the `stub-audit` skill (invoke via the Skill tool) to audit <scope>. Write the report to <output-dir>/MOCK-STUB-AUDIT.md.
 
+    known_clean_surfaces (from caller — treat each as already-verified intact):
+    <pass the structured list verbatim, or "none" if empty>
+
+    For any candidate finding whose `file:symbol` matches an entry above, emit a structured block classified `FALSE-POSITIVE / INTENTIONAL` with `Recommended fix: none — marked clean by caller: <reason>`. Do not silently drop these; the orchestrator needs the entries to confirm the surfaces stayed clean.
+
     Use this exact severity vocabulary: HIGH | MEDIUM | LOW | FALSE-POSITIVE | INTENTIONAL. Do not invent other labels.
 
     Emit every HIGH and MEDIUM finding as a structured block in the schema documented in the stub-audit skill (Finding ID prefix STUB-).
@@ -135,9 +156,36 @@ Both tasks run concurrently. Wait for both completions.
 
 ### 5. Aggregate
 
-Read both reports. Parse the structured `### Finding ID:` blocks block-by-block; tolerate minor formatting variance (extra whitespace, inline vs. pipe-block evidence, `N/A` vs. `unknown`). Build a combined `<output-dir>/DISHONEST-CODE-AUDIT.md` using the procedure below.
+Run the deterministic aggregator shipped with this skill, then fill in the narrative sections it leaves blank.
 
-> Future work: ship a small Python parser for genuinely deterministic aggregation. v0.2.0 relies on the orchestrator LLM.
+```bash
+SKILL_DIR="$(dirname "$(realpath "$0")")"  # or the equivalent the loader exposes
+python3 "$SKILL_DIR/lib/aggregate.py" \
+  --safe-fail   "<output-dir>/SAFE-FAIL-AUDIT.md" \
+  --mock-stub   "<output-dir>/MOCK-STUB-AUDIT.md" \
+  --out-dir     "<output-dir>" \
+  --repo-root   "$(git rev-parse --show-toplevel)" \
+  --scope       "<scope description>" \
+  --date        "$(date -I)" \
+  ${KNOWN_CLEAN_FILE:+--known-clean-surfaces "$KNOWN_CLEAN_FILE"}
+```
+
+The aggregator writes two files into the output directory:
+
+- `AGGREGATE.json` — single source of truth for findings, dedup pairings, counts, severity merges, and a `single_source_findings` array for the cross-audit-gaps narrative.
+- `DISHONEST-CODE-AUDIT.md` — Markdown skeleton with mechanical sections filled (counts, every Finding block, LOW bullets, FALSE-POSITIVE list, known-clean-surfaces confirmation) and three `<!-- LLM_FILL: ... -->` placeholders (headline, dominant patterns, cross-audit gaps) plus coverage notes.
+
+The aggregator fails loud on any malformed block. If it exits non-zero, do not fall back to LLM aggregation — surface the error so the source reports can be re-emitted in spec.
+
+After the aggregator returns 0, read `AGGREGATE.json` and fill the three placeholder sections in `DISHONEST-CODE-AUDIT.md`:
+
+1. **Headline** — one sentence describing what is NOT broken, mirrored against the dominant patterns.
+2. **Dominant patterns** — group HIGH findings into 1-3 clusters that share a root cause. Write 1-2 sentences per cluster, naming the items by their `HIGH-NNN` IDs.
+3. **Cross-audit gaps** — walk the `single_source_findings` array. For each entry judge whether the OTHER specialist could have caught it independently from their own framing; emit one bullet per gap in the form documented in that section. Write the "None — every finding sits on a single specialist's domain." fallback when no feasible cross-coverage exists.
+
+The aggregator does NOT perform MEDIUM → LOW demotion; that judgment requires production context the parser does not have. Apply any demotions by hand on top of the skeleton, following the rules in the **Dedup key** section below.
+
+> **Parsing rules the aggregator enforces** (documented here for callers running step 5 manually or auditing the script):
 
 **Dedup key:**
 
@@ -146,6 +194,8 @@ Read both reports. Parse the structured `### Finding ID:` blocks block-by-block;
 3. **Retain findings with `Line: unknown`.** Do not drop them.
 
 **Severity disagreement:** When the two specialists disagree on severity for the same dedup key, use the higher severity in the combined entry AND record both opinions (e.g., `Severity: HIGH (safe-fail: MEDIUM, stub: HIGH)`).
+
+**Aggregator-side demotion:** You MAY demote a MEDIUM finding to LOW based on production context the specialist did not have (e.g., the route already 429s rather than 200-OK-lies; the path is dormant behind an off-by-default flag; a redundant correct-pattern sibling exists in the same component). When you do, annotate the combined entry with `Demoted from MEDIUM: <reason>` so the original signal is recoverable on re-read. Silent demotion is forbidden — the verdict counts in the summary must reconcile against the source reports plus the recorded demotions. Do not demote HIGH findings on aggregator-side context alone; if a HIGH looks wrong, downgrade only when both specialists agree, or kick it back via the cross-audit gaps section.
 
 **Combined report shape:**
 
@@ -187,7 +237,17 @@ Severity disagreement: none | "<source>: <severity>"
 [bulleted, terse]
 
 ## False positives / intentional patterns
-[brief; point to individual audits for detail]
+[brief; point to individual audits for detail. Include known_clean_surfaces entries here, one bullet each, confirming each surface verified intact.]
+
+## Cross-audit gaps (tuning signal)
+
+REQUIRED SECTION. Compare the two source reports surface-by-surface. For each finding the combined report kept, ask: could the OTHER specialist have caught it independently from their own framing? If yes and they didn't, log it here. This is the diagnostic for tuning the plugin over time — silent improvements compound, missed double-coverage rots.
+
+Shape: one bullet per gap, in the form `<HIGH-ID>: <which specialist caught it> — <which specialist could have caught it independently and didn't> — <one-line tuning suggestion>`.
+
+The two specialists cover NEAR-DISJOINT surfaces by design (error paths vs. happy paths); most findings will not have a cross-audit counterpart, and that is fine. The point is to surface the cases where double-coverage is feasible but didn't fire.
+
+If neither specialist had a feasible cross-coverage path for any finding, write: `None — every finding sits on a single specialist's domain.`
 
 ## Coverage notes
 - Profiles loaded: <typescript, frameworks/react, python, ...>
