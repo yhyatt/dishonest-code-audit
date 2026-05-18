@@ -54,7 +54,7 @@ Stack profiles plug detection bash + skip-lists into `stub-audit` for a new lang
    - The matching manifest file at the fixture root (so stack detection would match).
    - An `expected.json` manifest listing the file path, pattern label, and minimum severity each planted finding represents.
 
-5. **Add pattern-to-search mappings** in `tests/run-fixtures.sh` (the `pattern_to_search` case statement) if your pattern label is not already covered. The mapping translates a high-level pattern label into the fixed-string grep the harness uses to assert presence.
+5. **Add pattern-to-search mappings** in `tests/run-fixtures.sh` inside the `run_profile_grep` function (the `case "$pattern" in` block) if your pattern label is not already covered. The mapping translates a high-level pattern label into the grep the harness uses to assert presence.
 
 6. **Run the harness:**
 
@@ -80,7 +80,7 @@ Inside an existing profile or skill:
 
 1. Add the grep / detection logic to the relevant profile file.
 2. Add (or extend) a fixture that contains a planted instance of the pattern.
-3. Extend `expected.json` and the `pattern_to_search` mapping.
+3. Extend `expected.json` and the `run_profile_grep` `case` mapping in `tests/run-fixtures.sh`.
 4. Run `bash tests/run-fixtures.sh`. Must exit 0.
 5. Open a PR with the pattern's name, the rationale (what user-visible lie it surfaces), and one real-world example with the project elided.
 
