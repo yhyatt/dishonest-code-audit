@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Find code that lies to users: silent failures plus mock/stub/placeholder code in production paths. Supports JS/TS, Python, Go, Rust, Ruby via pluggable stack profiles.",
-    "version": "0.2.2"
+    "version": "0.3.0"
   },
   "plugins": [
     {

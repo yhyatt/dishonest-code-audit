@@ -154,7 +154,7 @@ Notes:
 - Severity vocabulary is fixed at the five values above. Do not invent new ones.
 - `Line: unknown` is acceptable when the finding is file-level (e.g., entire route handler returns canned data). The aggregator retains these.
 
-> Future work: ship a small Python parser for genuinely deterministic aggregation. v0.2.0 relies on the orchestrator LLM.
+> The orchestrator's deterministic Python aggregator at `skills/dishonest-code-audit/lib/aggregate.py` parses these blocks block-by-block. Keep the schema exact so the aggregator does not raise.
 
 ### Report skeleton
 
