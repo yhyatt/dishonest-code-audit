@@ -1,0 +1,13 @@
+{
+  "counts": {
+    "intentional_total": 1,
+    "high_total": 0,
+    "medium_total": 0
+  },
+  "findings": [
+    {
+      "file": "src/Toast.tsx",
+      "severity": "INTENTIONAL"
+    }
+  ]
+}

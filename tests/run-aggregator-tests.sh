@@ -140,26 +140,43 @@ for fixture_dir in "$fixtures_root"/*/; do
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp_out'" EXIT
 
-  # Malformed case: assert exit != 0 and stderr names the file + a line number.
-  if [ "$case_name" = "case-06-malformed" ]; then
+  # Must-fail case: expected.json contains a top-level `must_fail` object with
+  # `stderr_contains_path` (substring) and/or `stderr_contains_pattern` (regex).
+  # Assert exit != 0 and the stderr contains both strings/patterns.
+  must_fail_path=$(python3 -c 'import json,sys
+e=json.load(open(sys.argv[1]))
+mf=e.get("must_fail") or {}
+print(mf.get("stderr_contains_path",""))' "$expected")
+  must_fail_pattern=$(python3 -c 'import json,sys
+e=json.load(open(sys.argv[1]))
+mf=e.get("must_fail") or {}
+print(mf.get("stderr_contains_pattern",""))' "$expected")
+
+  if [ -n "$must_fail_path" ] || [ -n "$must_fail_pattern" ]; then
+    args=(
+      --safe-fail "$safe_fail"
+      --mock-stub "$mock_stub"
+      --out-dir "$tmp_out"
+      --scope test --date 2026-05-18
+    )
+    if [ -f "$known_clean" ]; then
+      args+=( --known-clean-surfaces "$known_clean" )
+    fi
+
     set +e
-    stderr_capture=$(python3 "$aggregator" \
-      --safe-fail "$safe_fail" \
-      --mock-stub "$mock_stub" \
-      --out-dir "$tmp_out" \
-      --scope test --date 2026-05-18 2>&1 >/dev/null)
+    stderr_capture=$(python3 "$aggregator" "${args[@]}" 2>&1 >/dev/null)
     rc=$?
     set -e
 
     if [ "$rc" -eq 0 ]; then
-      echo "FAIL [$case_name]: aggregator exited 0 on malformed input; expected non-zero" >&2
+      echo "FAIL [$case_name]: aggregator exited 0; expected non-zero" >&2
       failed_cases=$((failed_cases + 1))
       rm -rf "$tmp_out"
       trap - EXIT
       continue
     fi
-    if ! printf '%s' "$stderr_capture" | grep -qF "$safe_fail"; then
-      echo "FAIL [$case_name]: stderr does not name the safe-fail.md path" >&2
+    if [ -n "$must_fail_path" ] && ! printf '%s' "$stderr_capture" | grep -qF "$must_fail_path"; then
+      echo "FAIL [$case_name]: stderr missing required substring '$must_fail_path'" >&2
       echo "       stderr was:" >&2
       printf '%s\n' "$stderr_capture" | sed 's/^/         /' >&2
       failed_cases=$((failed_cases + 1))
@@ -167,9 +184,8 @@ for fixture_dir in "$fixtures_root"/*/; do
       trap - EXIT
       continue
     fi
-    # Require "<path>:<digits>" pattern in the stderr (block start line).
-    if ! printf '%s' "$stderr_capture" | grep -qE "$(printf '%s' "$safe_fail" | sed 's|[/.]|\\&|g'):[0-9]+"; then
-      echo "FAIL [$case_name]: stderr does not contain '<safe-fail-path>:<line>' pattern" >&2
+    if [ -n "$must_fail_pattern" ] && ! printf '%s' "$stderr_capture" | grep -qE "$must_fail_pattern"; then
+      echo "FAIL [$case_name]: stderr missing required pattern '$must_fail_pattern'" >&2
       echo "       stderr was:" >&2
       printf '%s\n' "$stderr_capture" | sed 's/^/         /' >&2
       failed_cases=$((failed_cases + 1))
@@ -177,7 +193,7 @@ for fixture_dir in "$fixtures_root"/*/; do
       trap - EXIT
       continue
     fi
-    echo "OK   [$case_name]: aggregator exited non-zero with file:line in stderr"
+    echo "OK   [$case_name]: aggregator exited non-zero with required stderr markers"
     rm -rf "$tmp_out"
     trap - EXIT
     continue

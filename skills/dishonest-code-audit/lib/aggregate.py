@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass, field, asdict
@@ -33,7 +32,6 @@ SEVERITY_RANK = {
     "MEDIUM": 3,
     "LOW": 2,
     "FALSE-POSITIVE": 1,
-    "FALSE-POSITIVE / INTENTIONAL": 1,
     "INTENTIONAL": 1,
 }
 
@@ -86,8 +84,17 @@ class Finding:
 
 
 def normalize_severity(value: str) -> str:
-    """Normalize a severity string to the canonical vocabulary."""
+    """Normalize a severity string to the canonical vocabulary.
+
+    The SKILL.md prompt instructs specialists to emit `FALSE-POSITIVE / INTENTIONAL`
+    as a unified label, but downstream (render_markdown, intentional_total) buckets
+    on the short labels. Normalize the unified form to `INTENTIONAL` so the
+    downstream lookups never miss.
+    """
     v = value.strip().upper()
+    # Unified label from SKILL.md prompts → canonical bucket.
+    if v in {"FALSE-POSITIVE / INTENTIONAL", "FALSE-POSITIVE/INTENTIONAL"}:
+        v = "INTENTIONAL"
     # Accept some legacy aliases that drift in practice.
     if v in {"FP", "FALSE POSITIVE"}:
         v = "FALSE-POSITIVE"
@@ -197,11 +204,11 @@ def parse_report(path: Path, source_label: str, repo_root: Optional[str]) -> lis
                 i += 1
                 continue
 
-            # Blank line outside Evidence ends the block.
-            if not line.strip():
-                i += 1
-                break
-
+            # Blank line outside Evidence is tolerated as visual spacing — keep
+            # reading until the next `### Finding ID:` header or EOF terminates
+            # the block. Specialists that emit blank lines between fields used
+            # to break the parser; we now treat the header as the only block
+            # boundary.
             i += 1
 
         if evidence_lines:
@@ -335,9 +342,13 @@ def deduplicate(findings: list[Finding], jaccard_threshold: float = 0.6) -> list
 
         # Fallback: same file, fuzzy lie match. Only when at least one side has
         # an unknown line (per spec); otherwise primary-key mismatch means
-        # different sites in the same file.
+        # different sites in the same file. Pick the HIGHEST-scoring candidate
+        # over the threshold, not the first — multiple unknown-line findings in
+        # one file used to pair against the first match, possibly leaving the
+        # real duplicate stranded as a separate finding.
         if partner is None:
             sf_tokens = tokenize(sf.user_visible_lie)
+            candidates: list[tuple[float, Finding]] = []
             for cand in ms_by_file.get(sf.file, []):
                 if cand.finding_id in consumed_ms:
                     continue
@@ -346,8 +357,10 @@ def deduplicate(findings: list[Finding], jaccard_threshold: float = 0.6) -> list
                     continue
                 score = jaccard(sf_tokens, tokenize(cand.user_visible_lie))
                 if score >= jaccard_threshold:
-                    partner = cand
-                    break
+                    candidates.append((score, cand))
+            if candidates:
+                candidates.sort(key=lambda x: -x[0])
+                partner = candidates[0][1]
 
         if partner is not None:
             merged.append(merge_pair(sf, partner))
@@ -380,7 +393,7 @@ def _as_merged(f: Finding) -> MergedFinding:
     )
 
 
-def parse_known_clean(text: Optional[str]) -> list[tuple[str, str, str]]:
+def parse_known_clean(text: Optional[str], source_path: str = "<known-clean>") -> list[tuple[str, str, str]]:
     """Parse known_clean_surfaces input.
 
     Accepts the YAML-ish form documented in SKILL.md, one entry per line:
@@ -388,11 +401,15 @@ def parse_known_clean(text: Optional[str]) -> list[tuple[str, str, str]]:
     Returns list of (file, symbol, reason) tuples. Symbol is empty when omitted.
     Lines starting with `#`, blank lines, and a leading `known_clean_surfaces:`
     header are ignored.
+
+    Fails loud on malformed entries — silently dropping them used to let
+    callers think reclassification happened when their input was actually
+    ignored. Per the file's "fail loud, never silent" posture.
     """
     if not text:
         return []
     out: list[tuple[str, str, str]] = []
-    for raw in text.splitlines():
+    for lineno, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -403,7 +420,10 @@ def parse_known_clean(text: Optional[str]) -> list[tuple[str, str, str]]:
         # Split on em dash or " — " or " - "
         m = re.match(r"^(.+?)\s+[—-]\s+(.+)$", line)
         if not m:
-            continue
+            raise ValueError(
+                f"{source_path}:{lineno}: malformed known-clean entry "
+                f"(expected `path[:symbol] — reason`): {raw!r}"
+            )
         target, reason = m.group(1).strip(), m.group(2).strip()
         if ":" in target:
             f, sym = target.split(":", 1)
@@ -621,7 +641,10 @@ def main(argv: list[str]) -> int:
 
     known_clean = []
     if args.known_clean_surfaces and args.known_clean_surfaces.exists():
-        known_clean = parse_known_clean(args.known_clean_surfaces.read_text(encoding="utf-8"))
+        known_clean = parse_known_clean(
+            args.known_clean_surfaces.read_text(encoding="utf-8"),
+            source_path=str(args.known_clean_surfaces),
+        )
         apply_known_clean(merged, known_clean)
 
     counts = build_counts(safe, mock, merged)

@@ -1,0 +1,13 @@
+{
+  "counts": {
+    "safe_high": 1,
+    "high_total": 1
+  },
+  "findings": [
+    {
+      "file": "src/save.ts",
+      "severity": "HIGH",
+      "user_visible_lie": "toast says saved when server returned 500"
+    }
+  ]
+}

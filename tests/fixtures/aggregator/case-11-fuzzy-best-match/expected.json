@@ -1,0 +1,23 @@
+{
+  "counts": {
+    "safe_high": 1,
+    "mock_high": 1,
+    "mock_medium": 1,
+    "high_overlap": 1,
+    "high_total": 1,
+    "medium_total": 1
+  },
+  "findings": [
+    {
+      "file": "src/route.ts",
+      "severity": "HIGH",
+      "source_finding_ids": ["MS-002", "SF-001"],
+      "sources": ["mock-stub", "safe-fail"]
+    },
+    {
+      "file": "src/route.ts",
+      "severity": "MEDIUM",
+      "source_finding_ids": ["MS-001"]
+    }
+  ]
+}
