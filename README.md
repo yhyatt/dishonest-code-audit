@@ -1,9 +1,13 @@
 # dishonest-code-audit
 
-Two parallel Claude Code skills that find code which lies to the user.
+[![CI](https://github.com/yhyatt/dishonest-code-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/yhyatt/dishonest-code-audit/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-- **`dishonest-code-audit`**: orchestrator skill. Spawns both audits below in parallel against a scope (whole codebase / branch diff / specific directory) and aggregates their findings into one combined report.
-- **`stub-audit`**: standalone mock/stub/placeholder auditor. Wraps language-specific tools (knip + leasot for JS/TS, vulture for Python, `go vet` for Go, `cargo clippy` for Rust, rubocop for Ruby) plus a tuned grep sweep to build a candidate list, then uses LLM judgment to classify each finding by UX impact (HIGH / MEDIUM / LOW / FALSE-POSITIVE / INTENTIONAL).
+Find code that lies to the user. The orchestrator runs two specialists in parallel against a scope (whole codebase / branch diff / specific directory) and aggregates their findings into one combined report.
+
+- **`dishonest-code-audit`** (orchestrator, ships here): spawns the two specialists below in parallel and aggregates their findings.
+- **`silent-failure-hunter`** (error-path specialist): reasons about catch blocks, fallback logic, and log-and-continue patterns. Ships in [`pr-review-toolkit`](https://github.com/anthropics/claude-plugins-official) and must be installed separately, see [Prerequisites](#prerequisites).
+- **`stub-audit`** (happy-path specialist, ships here): mock/stub/placeholder auditor. Wraps language-specific tools (knip + leasot for JS/TS, vulture for Python, `go vet` for Go, `cargo clippy` for Rust, rubocop for Ruby) plus a tuned grep sweep to build a candidate list, then uses LLM judgment to classify each finding by UX impact (HIGH / MEDIUM / LOW / FALSE-POSITIVE / INTENTIONAL). Can be invoked standalone.
 
 ## Why this exists
 
