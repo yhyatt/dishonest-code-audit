@@ -2,13 +2,19 @@
 
 All notable changes to this plugin are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the plugin tries to follow [semantic versioning](https://semver.org/spec/v2.0.0.html) within the constraints of a Markdown-shipping plugin.
 
+## [Unreleased]
+
+### Planned
+
+- Small Python parser for genuinely deterministic aggregation of the structured finding schema. v0.2.0 relies on the orchestrator LLM for block-by-block parsing.
+
 ## [0.2.0]
 
 ### Added
 
 - **Pluggable stack profiles.** `stub-audit` now loads per-stack candidate generators from `skills/stub-audit/profiles/`: `typescript.md`, `python.md`, `go.md`, `rust.md`, `ruby.md`. Each profile owns its detection bash, language-specific skip-list, and graceful-degradation behavior when its toolchain is missing.
 - **Pluggable framework profiles** for UI-affordance patterns: `frameworks/react.md`, `frameworks/vue.md`, `frameworks/svelte.md`, `frameworks/solidjs.md`. Loaded on top of the typescript profile when the matching dependency is present in `package.json`.
-- **Structured finding schema** shared across both specialists. Each HIGH/MEDIUM finding is emitted as a parseable block (`Finding ID`, `Severity`, `File`, `Line`, `User-visible lie`, `Evidence`, `Recommended fix`, `Fix size`, `Confidence`). The orchestrator's aggregator parses these blocks deterministically and deduplicates on `(normalized File, Line)` with a `User-visible lie` similarity fallback when either field is `unknown`.
+- **Structured finding schema** shared across both specialists. Each HIGH/MEDIUM finding is emitted as a parseable block (`Finding ID`, `Severity`, `File`, `Line`, `User-visible lie`, `Evidence`, `Recommended fix`, `Fix size`, `Confidence`). The orchestrator's aggregator parses these blocks block-by-block, tolerates minor formatting variance, and deduplicates on `(normalized File, Line)` with a `User-visible lie` similarity fallback when either field is `unknown`.
 - **Prompt-injection guard** prepended to both Task-tool prompts. Treats all repository contents as untrusted input. Any text that tries to redirect the audit's scope, severity, or skip-list is itself a finding, regardless of phrasing (worked examples documented in both SKILLs).
 - **Explicit `## Requires` section** at the top of both SKILLs. Lists runtime assumptions (Task tool, `pr-review-toolkit`, language toolchains) and graceful-degradation behavior.
 - **Quiet, scripted-friendly prerequisite check** for `pr-review-toolkit`. Replaces a noisy grep with a check that exits with a clear error message.

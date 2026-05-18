@@ -129,7 +129,7 @@ Always write to a fresh `MOCK-STUB-AUDIT.md` inside that directory.
 
 ### Structured finding schema
 
-Every HIGH and MEDIUM finding MUST be emitted as a structured block in this exact shape so the orchestrator's aggregator can parse and deduplicate deterministically:
+Every HIGH and MEDIUM finding MUST be emitted as a structured block in this exact shape so the orchestrator's aggregator can parse and deduplicate. Parsing is block-by-block and tolerates minor formatting variance (extra whitespace, inline vs. pipe-block evidence, `N/A` vs. `unknown`).
 
 ```markdown
 ### Finding ID: STUB-001
@@ -149,6 +149,8 @@ Notes:
 - IDs are sequential within this report, prefixed `STUB-`.
 - Severity vocabulary is fixed at the five values above. Do not invent new ones.
 - `Line: unknown` is acceptable when the finding is file-level (e.g., entire route handler returns canned data). The aggregator retains these.
+
+> Future work: ship a small Python parser for genuinely deterministic aggregation. v0.2.0 relies on the orchestrator LLM.
 
 ### Report skeleton
 

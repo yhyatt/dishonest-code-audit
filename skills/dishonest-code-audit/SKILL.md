@@ -135,7 +135,9 @@ Both tasks run concurrently. Wait for both completions.
 
 ### 5. Aggregate
 
-Read both reports. Parse the structured `### Finding ID:` blocks deterministically. Build a combined `<output-dir>/DISHONEST-CODE-AUDIT.md` using the procedure below.
+Read both reports. Parse the structured `### Finding ID:` blocks block-by-block; tolerate minor formatting variance (extra whitespace, inline vs. pipe-block evidence, `N/A` vs. `unknown`). Build a combined `<output-dir>/DISHONEST-CODE-AUDIT.md` using the procedure below.
+
+> Future work: ship a small Python parser for genuinely deterministic aggregation. v0.2.0 relies on the orchestrator LLM.
 
 **Dedup key:**
 
